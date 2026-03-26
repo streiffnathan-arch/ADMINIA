@@ -1,0 +1,732 @@
+<!DOCTYPE html>
+
+<html lang="fr">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover"/>
+<meta name="apple-mobile-web-app-capable" content="yes"/>
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent"/>
+<meta name="apple-mobile-web-app-title" content="AdminAI"/>
+<meta name="theme-color" content="#0f1117"/>
+<title>AdminAI</title>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/react/18.2.0/umd/react.production.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/react-dom/18.2.0/umd/react-dom.production.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/babel-standalone/7.23.2/babel.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/mammoth/1.6.0/mammoth.browser.min.js"></script>
+<style>
+*{box-sizing:border-box;margin:0;padding:0}
+html,body,#root{height:100%}
+body{background:#0f1117;font-family:sans-serif;color:#e8eaf0}
+#splash{position:fixed;inset:0;background:#0f1117;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:14px;color:#8892a4;font-size:14px}
+.spin{width:34px;height:34px;border:3px solid #2a3347;border-top-color:#f0a830;border-radius:50%;animation:sp .8s linear infinite}
+@keyframes sp{to{transform:rotate(360deg)}}
+</style>
+</head>
+<body>
+<div id="splash"><div class="spin"></div><div>Chargement AdminAI…</div></div>
+<div id="root"></div>
+<script type="text/babel">
+const{useState,useRef,useEffect}=React;
+
+// ─── CSS ───────────────────────────────────────────────────────
+const CSS=`
+@import url(‘https://fonts.googleapis.com/css2?family=DM+Serif+Display&family=DM+Mono:wght@400;500&family=DM+Sans:wght@300;400;500&display=swap’);
+*,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
+:root{
+–bg:#0f1117;–sur:#171c27;–sur2:#1e2535;–bdr:#2a3347;
+–acc:#f0a830;–acc2:#e07c1a;–txt:#e8eaf0;–txt2:#8892a4;–txt3:#5a6478;
+–ok:#3dd68c;–r:14px
+}
+body{background:var(–bg);font-family:‘DM Sans’,sans-serif;color:var(–txt)}
+.app{display:flex;flex-direction:column;height:100dvh;max-width:980px;margin:0 auto}
+
+/* Header */
+.hdr{display:flex;align-items:center;justify-content:space-between;padding:12px 16px;border-bottom:1px solid var(–bdr);background:var(–sur);position:sticky;top:0;z-index:20;gap:10px;flex-wrap:wrap}
+.hdr-l{display:flex;align-items:center;gap:10px;flex-shrink:0}
+.logo{width:32px;height:32px;background:var(–acc);border-radius:8px;display:flex;align-items:center;justify-content:center;font-family:‘DM Serif Display’;font-size:17px;color:#0f1117;font-weight:700}
+.appname{font-family:‘DM Serif Display’;font-size:18px}
+.appsub{font-size:10px;color:var(–txt3);font-family:‘DM Mono’}
+.tabs{display:flex;gap:3px;background:var(–sur2);border-radius:9px;padding:3px}
+.tab{padding:5px 12px;border-radius:7px;font-size:12px;border:none;cursor:pointer;background:transparent;color:var(–txt2);font-family:‘DM Mono’;transition:all .15s}
+.tab.on{background:var(–acc);color:#0f1117;font-weight:600}
+.tgl-w{display:flex;align-items:center;gap:6px;cursor:pointer}
+.tgl-lb{font-size:11px;color:var(–txt2);font-family:‘DM Mono’}
+.tgl{width:36px;height:19px;border-radius:10px;background:var(–bdr);position:relative;border:none;cursor:pointer;transition:background .2s;flex-shrink:0}
+.tgl.on{background:var(–acc)}
+.tgl::after{content:’’;position:absolute;top:2px;left:2px;width:15px;height:15px;border-radius:50%;background:#fff;transition:transform .2s}
+.tgl.on::after{transform:translateX(17px)}
+
+/* Chat */
+.msgs{flex:1;overflow-y:auto;padding:16px;display:flex;flex-direction:column;gap:13px}
+.msg{display:flex;flex-direction:column;gap:3px;animation:fu .2s ease}
+@keyframes fu{from{opacity:0;transform:translateY(5px)}to{opacity:1;transform:none}}
+.msg.u{align-items:flex-end}.msg.a{align-items:flex-start}
+.bub{max-width:82%;padding:10px 14px;border-radius:var(–r);line-height:1.65;font-size:14px;white-space:pre-wrap;word-break:break-word}
+.msg.u .bub{background:#1e2d4a;border-bottom-right-radius:4px}
+.msg.a .bub{background:#1a2030;border-bottom-left-radius:4px;border:1px solid var(–bdr)}
+.meta{font-size:11px;color:var(–txt3);font-family:‘DM Mono’;padding:0 3px}
+.fchips{display:flex;flex-wrap:wrap;gap:5px;margin-bottom:6px}
+.fchip{padding:3px 9px;background:rgba(240,168,48,.12);border:1px solid rgba(240,168,48,.3);border-radius:20px;font-size:11px;color:var(–acc);font-family:‘DM Mono’}
+.dots{display:flex;gap:5px;align-items:center;padding:12px 14px}
+.dot{width:6px;height:6px;border-radius:50%;background:var(–acc);animation:boun .8s infinite ease-in-out}
+.dot:nth-child(2){animation-delay:.15s}.dot:nth-child(3){animation-delay:.3s}
+@keyframes boun{0%,60%,100%{transform:translateY(0)}30%{transform:translateY(-6px)}}
+.welcome{flex:1;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:16px;padding:32px 16px;text-align:center}
+.wi{font-size:40px}
+.welcome h2{font-family:‘DM Serif Display’;font-size:23px}
+.welcome p{color:var(–txt2);font-size:13px;max-width:300px;line-height:1.7}
+.wcaps{display:flex;gap:7px;flex-wrap:wrap;justify-content:center}
+.wcap{padding:6px 11px;border-radius:20px;background:var(–sur2);border:1px solid var(–bdr);font-size:11px;color:var(–txt2);font-family:‘DM Mono’}
+.inpz{border-top:1px solid var(–bdr);background:var(–sur);padding:10px 14px;display:flex;flex-direction:column;gap:8px}
+.attfs{display:flex;gap:7px;flex-wrap:wrap}
+.attch{display:flex;align-items:center;gap:5px;padding:4px 9px;background:var(–sur2);border:1px solid var(–bdr);border-radius:7px;font-size:12px;color:var(–txt2)}
+.rmbtn{background:none;border:none;color:var(–txt3);cursor:pointer;font-size:13px}
+.rmbtn:hover{color:#e05555}
+.inpr{display:flex;gap:7px;align-items:flex-end}
+.attb,.sndb{flex-shrink:0;border:none;cursor:pointer;border-radius:9px;display:flex;align-items:center;justify-content:center;font-size:17px;width:42px;height:42px;transition:all .15s}
+.attb{background:var(–sur2);border:1px solid var(–bdr);color:var(–txt2)}
+.attb:hover{border-color:var(–acc);color:var(–acc)}
+.sndb{background:var(–acc);color:#0f1117}
+.sndb:hover{background:var(–acc2);transform:scale(1.04)}
+.sndb:disabled{background:var(–bdr);color:var(–txt3);transform:none;cursor:default}
+textarea{flex:1;background:var(–sur2);border:1px solid var(–bdr);color:var(–txt);border-radius:9px;padding:10px 13px;font-family:‘DM Sans’;font-size:14px;resize:none;outline:none;line-height:1.5;max-height:110px}
+textarea:focus{border-color:var(–acc)}
+textarea::placeholder{color:var(–txt3)}
+.hint{font-size:11px;color:var(–txt3);font-family:‘DM Mono’;text-align:center}
+
+/* Enrich */
+.epane{flex:1;overflow-y:auto;display:flex;flex-direction:column}
+.sec{padding:16px;border-bottom:1px solid var(–bdr)}
+.stitle{font-family:‘DM Serif Display’;font-size:17px;margin-bottom:8px}
+.sdesc{font-size:13px;color:var(–txt2);line-height:1.6;margin-bottom:10px}
+.dropz{border:1.5px dashed var(–bdr);border-radius:var(–r);padding:20px;display:flex;flex-direction:column;align-items:center;gap:8px;cursor:pointer;transition:all .15s;text-align:center}
+.dropz:hover,.dropz.drag{border-color:var(–acc);background:rgba(240,168,48,.05)}
+.dropz-ico{font-size:26px}
+.dropz-txt{font-size:13px;color:var(–txt2)}
+.dropz-sub{font-size:11px;color:var(–txt3);font-family:‘DM Mono’}
+.sheets{display:flex;flex-wrap:wrap;gap:6px}
+.shbtn{padding:6px 13px;border-radius:8px;border:1px solid var(–bdr);background:var(–sur2);font-size:12px;color:var(–txt2);cursor:pointer;font-family:‘DM Mono’;transition:all .15s}
+.shbtn.on{background:rgba(240,168,48,.15);border-color:var(–acc);color:var(–acc)}
+.cgrid{display:grid;grid-template-columns:1fr 1fr;gap:7px}
+.crow{display:flex;align-items:center;gap:7px;background:var(–sur2);border:1px solid var(–bdr);border-radius:9px;padding:8px 11px}
+.clbl{font-size:12px;color:var(–txt2);flex:1}
+.clbl span{display:block;font-size:10px;color:var(–txt3);font-family:‘DM Mono’;margin-top:2px}
+select{background:var(–sur);border:1px solid var(–bdr);color:var(–txt2);border-radius:6px;padding:5px 7px;font-size:12px;font-family:‘DM Mono’;outline:none;cursor:pointer;max-width:150px}
+select:focus{border-color:var(–acc)}
+option{background:var(–sur)}
+.fcs{display:flex;flex-wrap:wrap;gap:6px}
+.fc{padding:6px 12px;border-radius:20px;border:1px solid var(–bdr);background:var(–sur2);font-size:12px;color:var(–txt2);cursor:pointer;font-family:‘DM Mono’;transition:all .15s;user-select:none}
+.fc.on{background:rgba(240,168,48,.15);border-color:var(–acc);color:var(–acc)}
+.pvw{overflow-x:auto;border-radius:10px;border:1px solid var(–bdr);max-height:200px;overflow-y:auto}
+table{width:100%;border-collapse:collapse;font-size:12px}
+thead tr{background:var(–sur2);position:sticky;top:0}
+th{padding:7px 11px;text-align:left;color:var(–txt2);font-family:‘DM Mono’;font-size:10px;white-space:nowrap;border-bottom:1px solid var(–bdr)}
+td{padding:7px 11px;border-bottom:1px solid rgba(42,51,71,.5);color:var(–txt);white-space:nowrap;max-width:200px;overflow:hidden;text-overflow:ellipsis}
+tr:last-child td{border-bottom:none}
+tr:hover td{background:rgba(255,255,255,.02)}
+.te{color:var(–txt3);font-style:italic;font-size:11px}
+.tf{color:var(–ok)}
+.tn{color:var(–acc);font-weight:500}
+
+/* Speed slider */
+.speed-box{background:var(–sur2);border:1px solid var(–bdr);border-radius:10px;padding:12px 14px}
+.speed-top{display:flex;justify-content:space-between;align-items:center;margin-bottom:8px}
+.speed-lbl{font-size:12px;color:var(–txt2);font-family:‘DM Mono’}
+.speed-val{font-size:15px;font-weight:700;color:var(–acc);font-family:‘DM Mono’}
+input[type=range]{width:100%;accent-color:var(–acc);cursor:pointer}
+.speed-tips{display:flex;justify-content:space-between;font-size:10px;color:var(–txt3);font-family:‘DM Mono’;margin-top:3px}
+.speed-est{font-size:11px;color:var(–ok);margin-top:7px;font-family:‘DM Mono’}
+
+/* Run button */
+.runbtn{padding:11px 22px;background:var(–acc);color:#0f1117;border:none;border-radius:10px;font-size:14px;font-weight:600;cursor:pointer;transition:all .15s;display:inline-flex;align-items:center;gap:8px}
+.runbtn:hover{background:var(–acc2);transform:translateY(-1px)}
+.runbtn:disabled{background:var(–bdr);color:var(–txt3);transform:none;cursor:default}
+
+/* Progress */
+.prow{display:flex;align-items:center;gap:10px}
+.pbar{flex:1;height:8px;background:var(–bdr);border-radius:4px;overflow:hidden}
+.pfill{height:100%;background:var(–acc);border-radius:4px;transition:width .35s}
+.ppct{font-size:12px;color:var(–txt);font-family:‘DM Mono’;font-weight:600;white-space:nowrap}
+
+/* Wake banner */
+.wlbanner{display:flex;align-items:flex-start;gap:10px;padding:11px 13px;border-radius:10px;font-size:12px;line-height:1.5;background:rgba(61,214,140,.1);border:1px solid rgba(61,214,140,.25);color:var(–ok)}
+.wlico{font-size:18px;flex-shrink:0}
+.wltxt b{display:block;font-weight:600;margin-bottom:1px}
+.wltxt span{opacity:.85;font-size:11px}
+
+/* Workers */
+.workers{display:flex;flex-direction:column;gap:4px}
+.wkr{display:flex;align-items:center;gap:8px;font-size:12px}
+.wkr-ico{font-size:11px;width:16px;text-align:center;flex-shrink:0}
+.wkr-name{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+
+/* Status card */
+.scard{background:var(–sur2);border:1px solid var(–bdr);border-radius:12px;padding:14px;display:flex;flex-direction:column;gap:11px}
+.srow{display:flex;justify-content:space-between;align-items:center;gap:8px}
+.slbl{font-size:11px;color:var(–txt2);font-family:‘DM Mono’;flex-shrink:0}
+.sval{font-size:12px;color:var(–txt);font-family:‘DM Mono’;font-weight:500}
+.seta{font-size:10px;color:var(–txt3);font-family:‘DM Mono’}
+
+/* Done */
+.donebanner{background:rgba(61,214,140,.08);border:1px solid rgba(61,214,140,.2);border-radius:12px;padding:14px;display:flex;align-items:center;gap:12px}
+.doneico{font-size:30px}
+.donetxt b{font-family:‘DM Serif Display’;font-size:17px;color:var(–ok);display:block}
+.donetxt span{font-size:12px;color:var(–txt2)}
+.exbtns{display:flex;gap:7px;flex-wrap:wrap}
+.exbtn{padding:7px 13px;border-radius:7px;font-size:11px;font-family:‘DM Mono’;background:var(–sur2);border:1px solid var(–bdr);color:var(–txt2);cursor:pointer;transition:all .15s}
+.exbtn:hover{border-color:var(–ok);color:var(–ok)}
+.badge{display:inline-flex;align-items:center;padding:2px 8px;border-radius:20px;font-size:10px;font-family:‘DM Mono’}
+.bok{background:rgba(61,214,140,.12);color:var(–ok);border:1px solid rgba(61,214,140,.3)}
+.bpart{background:rgba(240,168,48,.12);color:var(–acc);border:1px solid rgba(240,168,48,.3)}
+.bno{background:rgba(224,85,85,.1);color:#e05555;border:1px solid rgba(224,85,85,.25)}
+
+/* Geo badge */
+.geo{font-size:10px;color:var(–txt3);font-family:‘DM Mono’;background:var(–sur);border:1px solid var(–bdr);border-radius:4px;padding:1px 6px}
+
+::-webkit-scrollbar{width:3px}
+::-webkit-scrollbar-thumb{background:var(–bdr);border-radius:3px}
+`;
+
+// ─── CONSTANTS ────────────────────────────────────────────────
+const FIELDS=[
+{id:“website”, label:“🌐 Site web”,   kw:[“site”,“web”,“url”,“internet”,“homepage”]},
+{id:“phone”,   label:“📞 Téléphone”,  kw:[“tel”,“phone”,“téléphone”,“mobile”,“portable”,“gsm”,“fax”]},
+{id:“email”,   label:“📧 Email”,      kw:[“email”,“mail”,“courriel”,”@”]},
+{id:“address”, label:“📍 Adresse”,    kw:[“adresse”,“address”,“rue”,“street”,“chemin”,“avenue”,“bd”,“boulevard”,“route”]},
+];
+const FICONS={pdf:“📄”,xlsx:“📊”,xls:“📊”,csv:“📊”,docx:“📝”,doc:“📝”,png:“🖼”,jpg:“🖼”,jpeg:“🖼”,txt:“📃”};
+const ext=n=>n.split(”.”).pop().toLowerCase();
+const ficon=n=>FICONS[ext(n)]||“📎”;
+const ftime=d=>d.toLocaleTimeString(“fr-CH”,{hour:“2-digit”,minute:“2-digit”});
+const empty=v=>v===null||v===undefined||String(v).trim()===””;
+const fmts=s=>s<60?`${s}s`:`${Math.floor(s/60)}m${String(s%60).padStart(2,"0")}s`;
+
+// ─── WAKE LOCK + SILENT AUDIO ──────────────────────────────────
+let _wl=null, _actx=null, _asrc=null;
+async function wakeLockOn(){
+// 1. API
+try{if(“wakeLock” in navigator) _wl=await navigator.wakeLock.request(“screen”);}catch{}
+// 2. Silent audio loop (works even when API is unavailable)
+try{
+_actx=new(window.AudioContext||window.webkitAudioContext)();
+const buf=_actx.createBuffer(1,_actx.sampleRate*3,_actx.sampleRate);
+const ch=buf.getChannelData(0);
+for(let i=0;i<ch.length;i++) ch[i]=(Math.random()*2-1)*0.0005;
+_asrc=_actx.createBufferSource();
+_asrc.buffer=buf; _asrc.loop=true;
+_asrc.connect(_actx.destination);
+_asrc.start(0);
+}catch{}
+}
+function wakeLockOff(){
+try{_wl?.release();_wl=null;}catch{}
+try{_asrc?.stop();_asrc=null;}catch{}
+try{_actx?.close();_actx=null;}catch{}
+}
+
+// ─── CHIME ────────────────────────────────────────────────────
+function chime(){
+try{
+const c=new(window.AudioContext||window.webkitAudioContext)();
+[523,659,784,1047].forEach((f,i)=>{
+const o=c.createOscillator(),g=c.createGain();
+o.connect(g);g.connect(c.destination);o.type=“sine”;o.frequency.value=f;
+const t=c.currentTime+i*0.16;
+g.gain.setValueAtTime(0,t);
+g.gain.linearRampToValueAtTime(0.28,t+0.02);
+g.gain.exponentialRampToValueAtTime(0.001,t+0.5);
+o.start(t);o.stop(t+0.5);
+});
+}catch{}
+}
+
+// ─── EXCEL ────────────────────────────────────────────────────
+function readWb(file){
+return new Promise((res,rej)=>{
+const r=new FileReader();
+r.onload=e=>{try{res(XLSX.read(e.target.result,{type:“array”,cellDates:true}));}catch(err){rej(err);}};
+r.onerror=rej; r.readAsArrayBuffer(file);
+});
+}
+function wbToRows(wb,sn){
+const ws=wb.Sheets[sn];
+if(!ws) return{hdrs:[],rows:[]};
+const all=XLSX.utils.sheet_to_json(ws,{header:1,defval:””,raw:false});
+let hi=0;
+for(let i=0;i<Math.min(all.length,10);i++){if(all[i].filter(c=>String(c).trim()).length>=2){hi=i;break;}}
+const hdrs=all[hi].map((h,i)=>({i,lbl:String(h).trim()||`Col${i+1}`,raw:String(h).trim()}));
+const rows=all.slice(hi+1).filter(r=>r.some(c=>String(c).trim())).map((r,ri)=>{
+const o={_row:hi+1+ri+1};
+hdrs.forEach((h,i)=>{o[h.lbl]=r[i]!==undefined?String(r[i]).trim():””;});
+return o;
+});
+return{hdrs,rows};
+}
+function autoName(hdrs){
+for(const kw of[“nom”,“name”,“entreprise”,“company”,“client”,“raison”,“société”,“societe”]){
+const m=hdrs.find(h=>h.raw.toLowerCase().includes(kw));if(m)return m.lbl;
+}
+return hdrs[0]?.lbl||”**”;
+}
+function autoCol(hdrs,kws){
+for(const kw of kws){const m=hdrs.find(h=>h.raw.toLowerCase().includes(kw));if(m)return m.lbl;}
+return”**”;
+}
+
+// ─── FILE EXTRACT ─────────────────────────────────────────────
+async function readFile(file){
+const e=ext(file.name);
+if(e===“pdf”) return new Promise((res,rej)=>{const r=new FileReader();r.onload=()=>res({type:“pdf”,b64:r.result.split(”,”)[1],name:file.name});r.onerror=rej;r.readAsDataURL(file);});
+if([“png”,“jpg”,“jpeg”,“webp”].includes(e)) return new Promise((res,rej)=>{const r=new FileReader();r.onload=()=>res({type:“img”,b64:r.result.split(”,”)[1],mime:file.type,name:file.name});r.onerror=rej;r.readAsDataURL(file);});
+if([“xlsx”,“xls”,“csv”].includes(e)) return new Promise((res,rej)=>{const r=new FileReader();r.onload=ev=>{try{const wb=XLSX.read(ev.target.result,{type:“array”});let t=””;wb.SheetNames.forEach(s=>{t+=`=== ${s} ===\n${XLSX.utils.sheet_to_csv(wb.Sheets[s])}\n\n`;});res({type:“txt”,text:t.trim(),name:file.name});}catch(err){rej(err);}};r.onerror=rej;r.readAsArrayBuffer(file);});
+if([“docx”,“doc”].includes(e)) return new Promise((res,rej)=>{const r=new FileReader();r.onload=async ev=>{try{const x=await mammoth.extractRawText({arrayBuffer:ev.target.result});res({type:“txt”,text:x.value,name:file.name});}catch(err){rej(err);}};r.onerror=rej;r.readAsArrayBuffer(file);});
+return new Promise((res,rej)=>{const r=new FileReader();r.onload=()=>res({type:“txt”,text:r.result,name:file.name});r.onerror=rej;r.readAsText(file);});
+}
+function buildParts(text,files){
+const p=[];
+files.forEach(f=>{
+if(f.type===“pdf”){p.push({type:“document”,source:{type:“base64”,media_type:“application/pdf”,data:f.b64}});p.push({type:“text”,text:`[PDF: ${f.name}]`});}
+else if(f.type===“img”){p.push({type:“image”,source:{type:“base64”,media_type:f.mime,data:f.b64}});p.push({type:“text”,text:`[Image: ${f.name}]`});}
+else if(f.type===“txt”){p.push({type:“text”,text:`[${f.name}]\n\```\n${f.text}\n````});}
+});
+if(text.trim()) p.push({type:“text”,text});
+return p;
+}
+
+// ─── GEO DETECTION ────────────────────────────────────────────
+function detectGeo(ctx,row){
+const gkw=[“ville”,“city”,“pays”,“country”,“canton”,“npa”,“zip”,“code postal”,“localité”,“localite”,“adresse”,“address”,“siège”,“siege”,“hq”,“headquarter”,“location”,“région”,“region”];
+const vals=[];
+Object.entries({…ctx,…row}).forEach(([k,v])=>{
+if(!v||k===”_row”) return;
+if(gkw.some(g=>k.toLowerCase().includes(g))) vals.push(String(v).trim());
+});
+const u=[…new Set(vals)].filter(v=>v.length>1);
+return u.length?u.join(”, “):null;
+}
+
+// ─── CLAUDE API ───────────────────────────────────────────────
+async function callClaude(messages,webSearch=true){
+const body={model:“claude-sonnet-4-20250514”,max_tokens:1000,messages};
+if(webSearch) body.tools=[{type:“web_search_20250305”,name:“web_search”}];
+const r=await fetch(“https://api.anthropic.com/v1/messages”,{method:“POST”,headers:{“Content-Type”:“application/json”},body:JSON.stringify(body)});
+const d=await r.json();
+return(d.content||[]).filter(b=>b.type===“text”).map(b=>b.text).join(””);
+}
+
+async function enrichOne(company,ctx,fields,row){
+const lbls=fields.map(f=>FIELDS.find(x=>x.id===f)?.label.replace(/^[^ ]+ /,””)).join(”, “);
+const ctxStr=Object.entries(ctx).filter(([,v])=>v).map(([k,v])=>`${k}: ${v}`).join(” | “);
+const geo=detectGeo(ctx,row);
+const geoBlock=geo?`\n⚠️ CONTRAINTE GÉO STRICTE: Cette entreprise est dans "${geo}". Retourne UNIQUEMENT les données de cette zone. Si tu trouves le même nom ailleurs, ignore et mets null.`:””;
+
+const prompt=`Recherche sur internet pour cette entreprise. Entreprise: "${company}" ${ctxStr?`Données connues: ${ctxStr}`:””}${geoBlock}
+Champs à trouver: ${lbls}
+
+Réponds UNIQUEMENT avec un JSON valide, sans texte avant ou après, sans backticks.
+{
+${fields.map(f=>`  "${f}": "valeur ou null"`).join(”,\n”)}
+}`;
+
+const raw=await callClaude([{role:“user”,content:prompt}],true);
+try{const s=raw.indexOf(”{”),e=raw.lastIndexOf(”}”);if(s>=0&&e>s)return{ok:true,data:JSON.parse(raw.slice(s,e+1)),geo};}catch{}
+return{ok:false,data:null,geo};
+}
+
+// ─── COMPONENT ────────────────────────────────────────────────
+function App(){
+// Chat state
+const[msgs,setMsgs]=useState([]);
+const[inp,setInp]=useState(””);
+const[cfiles,setCfiles]=useState([]);
+const[cload,setCload]=useState(false);
+const[wsearch,setWsearch]=useState(true);
+const cfileRef=useRef();
+const botRef=useRef();
+const[tab,setTab]=useState(“chat”);
+
+// Enrich state
+const[step,setStep]=useState(“upload”); // upload|config|run|done
+const[xfile,setXfile]=useState(null);
+const[wb,setWb]=useState(null);
+const[sheets,setSheets]=useState([]);
+const[sheet,setSheet]=useState(””);
+const[hdrs,setHdrs]=useState([]);
+const[rows,setRows]=useState([]);
+const[nameCol,setNameCol]=useState(”__”);
+const[colMap,setColMap]=useState({});
+const[selFields,setSelFields]=useState([“website”,“phone”,“email”,“address”]);
+const[drag,setDrag]=useState(false);
+const efileRef=useRef();
+const[prog,setProg]=useState({n:0,t:0});
+const[results,setResults]=useState([]);
+const[finalWb,setFinalWb]=useState(null);
+const[workers,setWorkers]=useState([]);
+const[speed,setSpeed]=useState(3);
+const[elapsed,setElapsed]=useState(0);
+const tiRef=useRef(null);
+
+const startClock=()=>{setElapsed(0);tiRef.current=setInterval(()=>setElapsed(e=>e+1),1000);};
+const stopClock=()=>{clearInterval(tiRef.current);};
+useEffect(()=>()=>stopClock(),[]);
+useEffect(()=>{botRef.current?.scrollIntoView({behavior:“smooth”});},[msgs,cload]);
+
+// Re-parse when sheet changes
+useEffect(()=>{
+if(!wb||!sheet) return;
+const{hdrs:h,rows:r}=wbToRows(wb,sheet);
+setHdrs(h); setRows(r); setNameCol(autoName(h));
+const m={};FIELDS.forEach(f=>{m[f.id]=autoCol(h,f.kw);});setColMap(m);
+},[wb,sheet]);
+
+const loadXls=async(file)=>{
+try{
+const w=await readWb(file);
+setXfile(file); setWb(w); setSheets(w.SheetNames);
+const pref=w.SheetNames.find(s=>/data|base|client|gama|liste|list/i.test(s))||w.SheetNames[0];
+setSheet(pref); setStep(“config”); setResults([]);
+}catch(e){alert(“Erreur lecture: “+e.message);}
+};
+
+const toggleField=id=>setSelFields(p=>p.includes(id)?p.filter(x=>x!==id):[…p,id]);
+
+const toEnrich=rows.filter(row=>{
+if(nameCol===”**”||!row[nameCol]||!String(row[nameCol]).trim()) return false;
+return selFields.some(fid=>{const c=colMap[fid];return c&&c!==”**”&&empty(row[c]);});
+});
+
+const runEnrich=async()=>{
+if(!toEnrich.length) return;
+const total=toEnrich.length;
+setStep(“run”); setProg({n:0,t:total}); setWorkers(Array(speed).fill(””));
+await wakeLockOn(); startClock();
+const orig=document.title; document.title=`⏳ 0/${total} — AdminAI`;
+
+```
+const wbCopy=XLSX.read(XLSX.write(wb,{type:"array",bookType:"xlsx"}),{type:"array"});
+const ws=wbCopy.Sheets[sheet];
+const nr=new Array(total).fill(null);
+let done=0, idx=0;
+
+const worker=async(wi)=>{
+  while(true){
+    const i=idx++;
+    if(i>=total) break;
+    const row=toEnrich[i];
+    const company=String(row[nameCol]).trim();
+    setWorkers(p=>{const a=[...p];a[wi]=company;return a;});
+
+    const ctx={};
+    FIELDS.forEach(f=>{const c=colMap[f.id];if(c&&c!=="__"&&!empty(row[c]))ctx[f.label.replace(/^[^ ]+ /,"")]=row[c];});
+    Object.entries(row).forEach(([k,v])=>{if(k!=="_row"&&!empty(v)&&!Object.values(ctx).includes(v))ctx[k]=v;});
+    const fn=selFields.filter(fid=>{const c=colMap[fid];return c&&c!=="__"&&empty(row[c]);});
+
+    const res=await enrichOne(company,ctx,fn,row);
+
+    if(res.ok&&res.data){
+      fn.forEach(fid=>{
+        const c=colMap[fid],val=res.data[fid];
+        if(c&&c!=="__"&&val&&val!=="null"&&val!==null){
+          const hi=hdrs.find(h=>h.lbl===c)?.i;
+          if(hi!==undefined){const ca=XLSX.utils.encode_cell({r:row._row-1,c:hi});ws[ca]={v:val,t:"s"};}
+        }
+      });
+    }
+    const filled=res.ok&&res.data?fn.filter(f=>res.data[f]&&res.data[f]!=="null"&&res.data[f]!==null).length:0;
+    nr[i]={company,status:filled>0?"ok":"none",data:res.data,fn,geo:res.geo};
+    done++;
+    setResults(nr.filter(Boolean));
+    setProg({n:done,t:total});
+    document.title=`⏳ ${done}/${total} — AdminAI`;
+  }
+  setWorkers(p=>{const a=[...p];a[wi]="✓";return a;});
+};
+
+await Promise.all(Array.from({length:Math.min(speed,total)},(_,i)=>worker(i)));
+
+setFinalWb(wbCopy); setStep("done"); stopClock(); wakeLockOff(); chime();
+const ok=nr.filter(r=>r&&r.status==="ok").length;
+document.title=`✅ ${ok}/${total} enrichis — AdminAI`;
+setTimeout(()=>{document.title=orig;},30000);
+```
+
+};
+
+const exportXls=()=>{if(finalWb)XLSX.writeFile(finalWb,xfile.name.replace(/.[^.]+$/,””)+”_enrichi.xlsx”);};
+const exportCsv=()=>{
+if(!finalWb) return;
+const csv=XLSX.utils.sheet_to_csv(finalWb.Sheets[sheet]);
+const b=new Blob([”\uFEFF”+csv],{type:“text/csv;charset=utf-8”});
+const u=URL.createObjectURL(b),a=document.createElement(“a”);
+a.href=u;a.download=xfile.name.replace(/.[^.]+$/,””)+”_enrichi.csv”;a.click();
+};
+const reset=()=>{setStep(“upload”);setXfile(null);setWb(null);setSheets([]);setSheet(””);setHdrs([]);setRows([]);setResults([]);setFinalWb(null);};
+
+// Chat
+const loadCfiles=async fs=>{const p=await Promise.all(Array.from(fs).map(async f=>{try{return{file:f,ex:await readFile(f)};}catch{return{file:f,ex:{type:“txt”,text:”[Erreur]”,name:f.name}};}}));setCfiles(p=>([…p,…p]));};
+const sendMsg=async()=>{
+if((!inp.trim()&&!cfiles.length)||cload) return;
+const txt=inp.trim(),uf=[…cfiles];setInp(””);setCfiles([]);
+setMsgs(p=>[…p,{role:“user”,txt,files:uf.map(f=>f.file.name),ts:new Date()}]);
+setCload(true);
+try{
+const hist=msgs.map(m=>({role:m.role,content:m.role===“user”?(m.parts||[{type:“text”,text:m.txt||””}]):(m.txt||””)}));
+const parts=buildParts(txt,uf.map(f=>f.ex));
+hist.push({role:“user”,content:parts});
+const body={model:“claude-sonnet-4-20250514”,max_tokens:1000,system:“Tu es un assistant administratif expert. Réponds en français, de façon claire et concise.”,messages:hist};
+if(wsearch) body.tools=[{type:“web_search_20250305”,name:“web_search”}];
+const r=await fetch(“https://api.anthropic.com/v1/messages”,{method:“POST”,headers:{“Content-Type”:“application/json”},body:JSON.stringify(body)});
+const d=await r.json();
+const reply=(d.content||[]).filter(b=>b.type===“text”).map(b=>b.text).join(”\n”)||“Pas de réponse.”;
+setMsgs(p=>[…p.slice(0,-1),{…p[p.length-1],parts},{role:“assistant”,txt:reply,ts:new Date()}]);
+}catch(e){setMsgs(p=>[…p,{role:“assistant”,txt:`Erreur: ${e.message}`,ts:new Date()}]);}
+setCload(false);
+};
+const onKey=e=>{if(e.key===“Enter”&&!e.shiftKey){e.preventDefault();sendMsg();}};
+
+// ─── RENDER ───────────────────────────────────────────────
+return(<>
+<style>{CSS}</style>
+<div className="app">
+
+```
+  {/* ── HEADER ── */}
+  <div className="hdr">
+    <div className="hdr-l">
+      <div className="logo">A</div>
+      <div><div className="appname">AdminAI</div><div className="appsub">Claude API</div></div>
+    </div>
+    <div className="tabs">
+      <button className={`tab ${tab==="chat"?"on":""}`} onClick={()=>setTab("chat")}>💬 Assistant</button>
+      <button className={`tab ${tab==="enrich"?"on":""}`} onClick={()=>setTab("enrich")}>📊 Enrichir Excel</button>
+    </div>
+    {tab==="chat"&&<div className="tgl-w" onClick={()=>setWsearch(v=>!v)}><span className="tgl-lb">Web</span><button className={`tgl ${wsearch?"on":""}`}/></div>}
+  </div>
+
+  {/* ════ CHAT ════ */}
+  {tab==="chat"&&(<>
+    {!msgs.length&&!cload
+      ?<div className="welcome">
+        <div className="wi">📋</div>
+        <h2>Assistant Administratif</h2>
+        <p>Analyse des documents, répond à tes questions, fait des recherches sur internet.</p>
+        <div className="wcaps"><span className="wcap">📄 PDF</span><span className="wcap">📊 Excel</span><span className="wcap">📝 Word</span><span className="wcap">🔍 Web</span></div>
+      </div>
+      :<div className="msgs">
+        {msgs.map((m,i)=>(
+          <div key={i} className={`msg ${m.role==="user"?"u":"a"}`}>
+            {m.files?.length>0&&<div className="fchips" style={{justifyContent:m.role==="user"?"flex-end":"flex-start"}}>{m.files.map((f,j)=><span key={j} className="fchip">{ficon(f)} {f}</span>)}</div>}
+            {m.txt&&<div className="bub">{m.txt}</div>}
+            <div className="meta">{ftime(m.ts)}</div>
+          </div>
+        ))}
+        {cload&&<div className="msg a"><div className="bub dots"><div className="dot"/><div className="dot"/><div className="dot"/></div></div>}
+        <div ref={botRef}/>
+      </div>
+    }
+    <div className="inpz">
+      {cfiles.length>0&&<div className="attfs">{cfiles.map((f,i)=><div key={i} className="attch">{ficon(f.file.name)} {f.file.name}<button className="rmbtn" onClick={()=>setCfiles(p=>p.filter((_,j)=>j!==i))}>×</button></div>)}</div>}
+      <div className="inpr">
+        <button className="attb" onClick={()=>cfileRef.current.click()}>📎</button>
+        <textarea value={inp} onChange={e=>setInp(e.target.value)} onKeyDown={onKey} placeholder="Pose une question ou joins un fichier…" rows={1} onInput={e=>{e.target.style.height="auto";e.target.style.height=Math.min(e.target.scrollHeight,110)+"px";}}/>
+        <button className="sndb" onClick={sendMsg} disabled={cload||(!inp.trim()&&!cfiles.length)}>➤</button>
+      </div>
+      <div className="hint">Entrée pour envoyer · Maj+Entrée nouvelle ligne</div>
+    </div>
+    <input ref={cfileRef} type="file" style={{display:"none"}} multiple accept=".pdf,.xlsx,.xls,.csv,.docx,.doc,.png,.jpg,.jpeg,.txt" onChange={e=>loadCfiles(e.target.files)}/>
+  </>)}
+
+  {/* ════ ENRICH ════ */}
+  {tab==="enrich"&&<div className="epane">
+
+    {/* UPLOAD */}
+    {step==="upload"&&<div className="sec">
+      <div className="stitle">Enrichir un fichier Excel</div>
+      <div className="sdesc">Importe ton fichier. AdminAI détecte les onglets, identifie les colonnes et complète les données manquantes via une recherche internet géo-localisée.</div>
+      <div className={`dropz ${drag?"drag":""}`} onClick={()=>efileRef.current.click()}
+        onDragOver={e=>{e.preventDefault();setDrag(true);}} onDragLeave={()=>setDrag(false)}
+        onDrop={async e=>{e.preventDefault();setDrag(false);if(e.dataTransfer.files[0])loadXls(e.dataTransfer.files[0]);}}>
+        <div className="dropz-ico">📊</div>
+        <div className="dropz-txt">Appuie pour choisir ton fichier Excel</div>
+        <div className="dropz-sub">.xlsx · .xls · .csv</div>
+      </div>
+      <input ref={efileRef} type="file" style={{display:"none"}} accept=".xlsx,.xls,.csv" onChange={e=>{if(e.target.files[0])loadXls(e.target.files[0]);}}/>
+    </div>}
+
+    {/* CONFIG */}
+    {step==="config"&&<>
+      <div className="sec">
+        <div style={{display:"flex",justifyContent:"space-between",alignItems:"flex-start",marginBottom:10}}>
+          <div><div className="stitle">📊 {xfile?.name}</div><div style={{fontSize:12,color:"var(--txt2)",marginTop:2}}>{rows.length} lignes · {hdrs.length} colonnes</div></div>
+          <button onClick={reset} style={{background:"none",border:"1px solid var(--bdr)",color:"var(--txt3)",borderRadius:7,padding:"5px 10px",fontSize:11,fontFamily:"DM Mono",cursor:"pointer"}}>↺ Changer</button>
+        </div>
+        <div className="sdesc" style={{marginBottom:6}}>Onglets :</div>
+        <div className="sheets">{sheets.map(s=><button key={s} className={`shbtn ${sheet===s?"on":""}`} onClick={()=>setSheet(s)}>{s}</button>)}</div>
+      </div>
+
+      <div className="sec">
+        <div className="stitle">Colonnes</div>
+        <div style={{marginBottom:10}}>
+          <div style={{fontSize:11,color:"var(--txt2)",fontFamily:"DM Mono",marginBottom:5}}>Identifiant — Nom / Entreprise</div>
+          <select value={nameCol} onChange={e=>setNameCol(e.target.value)} style={{width:"100%",maxWidth:"100%"}}>
+            <option value="__">— Choisir —</option>
+            {hdrs.map(h=><option key={h.lbl} value={h.lbl}>{h.lbl}</option>)}
+          </select>
+        </div>
+        <div className="cgrid">
+          {FIELDS.map(f=>(
+            <div key={f.id} className="crow">
+              <div className="clbl">{f.label}<span>→ colonne Excel</span></div>
+              <select value={colMap[f.id]||"__"} onChange={e=>setColMap(p=>({...p,[f.id]:e.target.value}))}>
+                <option value="__">— Ignorer —</option>
+                {hdrs.map(h=><option key={h.lbl} value={h.lbl}>{h.lbl}</option>)}
+              </select>
+            </div>
+          ))}
+        </div>
+      </div>
+
+      <div className="sec">
+        <div className="stitle">Champs à compléter</div>
+        <div className="fcs">
+          {FIELDS.map(f=>{
+            const c=colMap[f.id],ok=c&&c!=="__";
+            const n=ok?rows.filter(r=>nameCol!=="__"&&r[nameCol]&&empty(r[c])).length:0;
+            return<div key={f.id} className={`fc ${selFields.includes(f.id)?"on":""}`} onClick={()=>ok&&toggleField(f.id)} style={{opacity:ok?1:.35,cursor:ok?"pointer":"default"}}>
+              {f.label}{ok&&n>0&&<span style={{marginLeft:4,fontSize:10,opacity:.7}}>{n} vides</span>}
+            </div>;
+          })}
+        </div>
+      </div>
+
+      <div className="sec">
+        <div className="stitle">Aperçu</div>
+        <div className="pvw">
+          <table>
+            <thead><tr>
+              {nameCol!=="__"&&<th style={{color:"var(--acc)"}}>📛 {nameCol}</th>}
+              {selFields.filter(f=>colMap[f]&&colMap[f]!=="__").map(f=><th key={f}>{FIELDS.find(x=>x.id===f)?.label}</th>)}
+            </tr></thead>
+            <tbody>{rows.slice(0,7).map((row,i)=>(
+              <tr key={i}>
+                {nameCol!=="__"&&<td className="tn">{row[nameCol]||<span className="te">—</span>}</td>}
+                {selFields.filter(f=>colMap[f]&&colMap[f]!=="__").map(f=>{const v=row[colMap[f]];return<td key={f}>{!empty(v)?<span className="tf">{v}</span>:<span className="te">vide</span>}</td>;})}
+              </tr>
+            ))}</tbody>
+          </table>
+        </div>
+        {rows.length>7&&<div style={{fontSize:11,color:"var(--txt3)",marginTop:5,fontFamily:"DM Mono"}}>… et {rows.length-7} autres lignes</div>}
+      </div>
+
+      <div className="sec" style={{borderBottom:"none"}}>
+        <div className="speed-box" style={{marginBottom:12}}>
+          <div className="speed-top"><span className="speed-lbl">⚡ Vitesse — recherches en parallèle</span><span className="speed-val">{speed}×</span></div>
+          <input type="range" min="1" max="5" value={speed} onChange={e=>setSpeed(Number(e.target.value))}/>
+          <div className="speed-tips"><span>1× lent</span><span>3× recommandé</span><span>5× rapide</span></div>
+          {toEnrich.length>0&&<div className="speed-est">⏱ ~{fmts(Math.ceil(toEnrich.length/speed)*30)} estimé pour {toEnrich.length} lignes</div>}
+        </div>
+        <div style={{display:"flex",alignItems:"center",gap:12,flexWrap:"wrap"}}>
+          <button className="runbtn" onClick={runEnrich} disabled={!toEnrich.length||nameCol==="__"||!selFields.length}>
+            🔍 Enrichir {toEnrich.length} ligne{toEnrich.length!==1?"s":""}
+          </button>
+          <div style={{fontSize:12,color:"var(--txt2)"}}>{toEnrich.length===0?"✓ Tout est déjà rempli":`${toEnrich.length} ligne(s) à compléter`}</div>
+        </div>
+      </div>
+    </>}
+
+    {/* RUNNING */}
+    {step==="run"&&<div className="sec" style={{display:"flex",flexDirection:"column",gap:13}}>
+      <div className="wlbanner">
+        <div className="wlico">🔆</div>
+        <div className="wltxt">
+          <b>Protection veille active · {speed} recherches en parallèle</b>
+          <span>Boucle audio silencieuse + Wake Lock — l'iPad reste actif. Un son te préviendra à la fin.</span>
+        </div>
+      </div>
+
+      <div className="scard">
+        <div className="prow">
+          <div className="pbar"><div className="pfill" style={{width:`${prog.t?prog.n/prog.t*100:0}%`}}/></div>
+          <div className="ppct">{prog.n}/{prog.t}</div>
+        </div>
+        <div>
+          <div style={{fontSize:11,color:"var(--txt2)",fontFamily:"DM Mono",marginBottom:5}}>{speed} traitements actifs :</div>
+          <div className="workers">
+            {workers.map((w,i)=>(
+              <div key={i} className="wkr">
+                <span className="wkr-ico">{w==="✓"?"✅":w?"⚡":"⏸"}</span>
+                <span className="wkr-name" style={{color:w==="✓"?"var(--ok)":w?"var(--acc)":"var(--txt3)"}}>{w==="✓"?"Terminé":w||"En attente…"}</span>
+              </div>
+            ))}
+          </div>
+        </div>
+        <div className="srow">
+          <span className="slbl">Durée</span>
+          <span className="sval">{fmts(elapsed)}</span>
+          {prog.n>0&&prog.n<prog.t&&<span className="seta">~{fmts(Math.round(elapsed/prog.n*(prog.t-prog.n)))} restant</span>}
+        </div>
+        <div className="srow"><span className="slbl">Enrichies</span><span className="sval" style={{color:"var(--ok)"}}>{results.filter(r=>r.status==="ok").length} ✓</span></div>
+      </div>
+
+      {results.length>0&&<div className="pvw"><table>
+        <thead><tr><th>Entreprise</th><th>📍 Zone</th>{selFields.map(f=><th key={f}>{FIELDS.find(x=>x.id===f)?.label}</th>)}<th>OK</th></tr></thead>
+        <tbody>{results.map((r,i)=>(
+          <tr key={i}>
+            <td className="tn">{r.company}</td>
+            <td>{r.geo?<span className="geo">{r.geo}</span>:<span className="te">—</span>}</td>
+            {selFields.map(f=>{const v=r.data?.[f];return<td key={f}>{v&&v!=="null"?<span className="tf">{v}</span>:<span className="te">—</span>}</td>;})}
+            <td><span className={`badge ${r.status==="ok"?"bok":"bno"}`}>{r.status==="ok"?"✓":"—"}</span></td>
+          </tr>
+        ))}</tbody>
+      </table></div>}
+    </div>}
+
+    {/* DONE */}
+    {step==="done"&&<>
+      <div className="sec">
+        <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:10,flexWrap:"wrap",gap:8}}>
+          <div style={{fontFamily:"DM Serif Display",fontSize:17}}>Résultats</div>
+          <div className="exbtns">
+            <button className="exbtn" onClick={exportXls}>⬇️ Excel enrichi</button>
+            <button className="exbtn" onClick={exportCsv}>⬇️ CSV</button>
+            <button className="exbtn" onClick={reset}>↺ Nouveau fichier</button>
+          </div>
+        </div>
+        <div className="donebanner">
+          <div className="doneico">🎉</div>
+          <div className="donetxt">
+            <b>Enrichissement terminé !</b>
+            <span>{results.filter(r=>r.status==="ok").length}/{results.length} lignes enrichies · Durée : {fmts(elapsed)}</span>
+          </div>
+        </div>
+      </div>
+      <div className="sec" style={{borderBottom:"none"}}>
+        <div className="pvw"><table>
+          <thead><tr><th>Entreprise</th><th>📍 Zone</th>{selFields.map(f=><th key={f}>{FIELDS.find(x=>x.id===f)?.label}</th>)}<th>Statut</th></tr></thead>
+          <tbody>{results.map((r,i)=>{
+            const ok=r.data?r.fn.filter(f=>r.data[f]&&r.data[f]!=="null").length:0;
+            return<tr key={i}>
+              <td className="tn">{r.company}</td>
+              <td>{r.geo?<span className="geo">{r.geo}</span>:<span className="te">—</span>}</td>
+              {selFields.map(f=>{const v=r.data?.[f],needed=r.fn.includes(f);return<td key={f}>{!needed?<span className="tf" style={{opacity:.4}}>✓</span>:v&&v!=="null"?<span className="tf">{v}</span>:<span className="te">—</span>}</td>;})}
+              <td><span className={`badge ${ok===r.fn.length?"bok":ok>0?"bpart":"bno"}`}>{ok===r.fn.length?"Complet":ok>0?`${ok}/${r.fn.length}`:"—"}</span></td>
+            </tr>;
+          })}</tbody>
+        </table></div>
+      </div>
+    </>}
+
+  </div>}
+</div>
+```
+
+</>);
+}
+
+document.getElementById(“splash”).style.display=“none”;
+ReactDOM.createRoot(document.getElementById(“root”)).render(<App/>);
+</script>
+
+</body>
+</html>
