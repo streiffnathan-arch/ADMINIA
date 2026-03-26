@@ -428,94 +428,64 @@ function detectGeo(ctx,row){
   return[...new Set(vals)].filter(v=>v.length>1).join(', ')||null;
 }
 
-// ── ENRICH CORE ── PROMPT OPTIMISÉ ───────────────────────────
+// ── ENRICH CORE — 1 entreprise par appel ─────────────────────
 async function enrichBatch(batch, fields){
-  const lbls = fields.map(f => FIELDS.find(x=>x.id===f)?.label.replace(/^[^ ]+ /,'')).join(', ');
+  // Process each company individually for maximum reliability
+  const results = await Promise.all(batch.map(b => enrichOne(b, fields)));
+  return results;
+}
 
-  // Build detailed company lines with all available context
-  const companyLines = batch.map((b, i) => {
-    const parts = [`${i+1}. "${b.company}"`];
-    // Add all non-empty context values
-    const ctxVals = Object.entries({...b.ctx, ...b.row})
-      .filter(([k,v]) => k !== '_row' && !empty(v) && String(v).length > 1)
-      .map(([k,v]) => `${k}=${v}`)
-      .slice(0, 6);
-    if(ctxVals.length) parts.push(`[${ctxVals.join(', ')}]`);
-    return parts.join(' ');
-  }).join('\n');
+async function enrichOne(b, fields){
+  const geo = detectGeo(b.ctx, b.row);
 
-  // Build the expected JSON template
-  const jsonTemplate = batch.map((_,i) =>
-    `  {"idx":${i}${fields.map(f=>`,\n   "${f}":null`).join('')}}`
-  ).join(',\n');
+  // Build context string
+  const ctxVals = Object.entries({...b.ctx, ...b.row})
+    .filter(([k,v]) => k !== '_row' && !empty(v) && String(v).trim().length > 1)
+    .map(([k,v]) => `${k}: ${v}`)
+    .slice(0, 8)
+    .join('\n');
 
-  const prompt = `You are a Swiss business data researcher. Your job is to find real, accurate contact information for Swiss companies.
+  const prompt = `Search the web for contact information about this Swiss company.
 
-For EACH company below, search the web and return its official contact details.
+Company: "${b.company}"
+${ctxVals ? `Known info:\n${ctxVals}` : ''}
+${geo ? `Location: ${geo}` : 'Country: Switzerland'}
 
-SEARCH STRATEGY (in order):
-1. Search "[company name] site:local.ch" → get phone + address
-2. Search "[company name] site:search.ch" → get phone + address  
-3. Search "[company name] Switzerland official website" → get website + email
-4. Search "[company name] site:moneyhouse.ch" → verify address
-5. If city known: search "[company name] [city] Switzerland contact"
+Search on: local.ch, search.ch, the company official website, moneyhouse.ch
 
-COMPANIES TO RESEARCH:
-${companyLines}
+Return ONLY a JSON object with these fields: ${fields.join(', ')}
 
-FIELDS NEEDED FOR EACH: ${lbls}
+Rules:
+- Use real data found on the web only
+- null if not found
+- website: just the domain (e.g. example.ch)
+- phone: Swiss format (+41 xx xxx xx xx)
+- address: street + NPA + city
+- email: professional email
 
-CRITICAL RULES:
-- Search for EACH company individually — do not skip any
-- Return ONLY real data found on the web, never invent
-- If not found after searching: use null
-- website: domain only, no https:// prefix (e.g. "example.ch")  
-- email: lowercase professional email
-- phone: Swiss format if possible (e.g. "+41 22 123 45 67" or "022 123 45 67")
-- address: full address with street, NPA and city
-- Do NOT confuse with companies of same name in other countries
+JSON only, no explanation:
+{${fields.map(f=>`"${f}":null`).join(',')}}`;
 
-Respond ONLY with a valid JSON array, no text before or after, no markdown backticks:
-[
-${jsonTemplate}
-]`;
-
-  const body = {
+  const d = await callAPI({
     model: MODEL,
-    max_tokens: MAX_ENRICH_TOKENS,
+    max_tokens: 1000,
     tools: [{type:'web_search_20250305', name:'web_search'}],
     messages: [{role:'user', content:prompt}]
-  };
+  });
 
-  const d = await callAPI(body);
   const raw = (d.content||[]).filter(b=>b.type==='text').map(b=>b.text).join('');
 
-  // Try to parse JSON array
   try{
-    const s=raw.indexOf('['), e=raw.lastIndexOf(']');
+    const s=raw.indexOf('{'), e=raw.lastIndexOf('}');
     if(s>=0&&e>s){
-      const arr = JSON.parse(raw.slice(s,e+1));
-      return batch.map((b,i)=>{
-        const found = arr.find(x=>Number(x.idx)===i) || arr[i] || null;
-        const geo = detectGeo(b.ctx,b.row);
-        return {ok:!!found, data:sanitize(found||{}), geo};
-      });
+      const parsed = JSON.parse(raw.slice(s,e+1));
+      return {ok:true, data:sanitize(parsed), geo};
     }
   }catch{}
-
-  // Fallback: try to extract individual JSON objects
-  const fallback = batch.map((b,i)=>{
-    const geo = detectGeo(b.ctx,b.row);
-    try{
-      // Look for object with idx:i
-      const rx = new RegExp(`\\{[^}]*"idx"\\s*:\\s*${i}[^}]*\\}`,'s');
-      const m = raw.match(rx);
-      if(m) return {ok:true, data:sanitize(JSON.parse(m[0])), geo};
-    }catch{}
-    return {ok:false, data:null, geo};
-  });
-  return fallback;
+  return {ok:false, data:null, geo};
 }
+
+
 
 // ── RENDER ENRICH ────────────────────────────────────────────
 function renderEnrich(step){
@@ -770,7 +740,7 @@ async function startEnrich(){
 
       const batch=batches[bi];
       const names=batch.map(b=>b.company).join(', ');
-      updateWorker(wi,`Lot ${bi+1}: ${names.substring(0,50)}…`,false);
+      updateWorker(wi,names.substring(0,55)+'…',false);
 
       // Check cache
       const cachedResults=new Array(batch.length).fill(null);
