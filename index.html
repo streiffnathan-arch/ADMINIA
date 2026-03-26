@@ -434,50 +434,73 @@ function detectGeo(ctx,row){
   return[...new Set(vals)].filter(v=>v.length>1).join(', ')||null;
 }
 
-// ─── API ──────────────────────────────────────────────────────
-async function enrichOne(company,ctx,fields,row){
+// ─── API — BATCH (plusieurs entreprises par appel) ────────────
+async function enrichBatch(batch, fields){
+  // batch = [{company, ctx, row, idx}, ...]
   const lbls=fields.map(f=>FIELDS.find(x=>x.id===f)?.label.replace(/^[^ ]+ /,'')).join(', ');
 
-  // Build context string from known data (ville, secteur, etc.)
-  const ctxParts=[];
-  Object.entries({...ctx,...row}).forEach(([k,v])=>{
-    if(k==='_row'||!v||String(v).trim().length<2) return;
-    ctxParts.push(`${k}: ${v}`);
-  });
-  const ctxStr=[...new Set(ctxParts)].slice(0,8).join(' | ');
+  const companies=batch.map((b,i)=>{
+    const ctxParts=[];
+    Object.entries({...b.ctx,...b.row}).forEach(([k,v])=>{
+      if(k==='_row'||!v||String(v).trim().length<2) return;
+      ctxParts.push(`${k}: ${v}`);
+    });
+    const ctx=[...new Set(ctxParts)].slice(0,5).join(' | ');
+    const geo=detectGeo(b.ctx,b.row);
+    return `${i+1}. "${b.company}"${ctx?' — '+ctx:''}${geo?' ('+geo+')':''}`;
+  }).join('\n');
 
-  const geo=detectGeo(ctx,row);
+  const prompt=`Tu es un assistant de recherche commerciale pour des entreprises suisses.
 
-  const prompt=`Tu es un assistant de recherche commerciale spécialisé dans les entreprises suisses.
+Recherche les informations suivantes pour CHAQUE entreprise dans la liste.
+Utilise des recherches web sur: local.ch, zefix.ch, moneyhouse.ch, search.ch, leur site officiel.
 
-Entreprise à rechercher: "${company}"
-${ctxStr?`Informations connues: ${ctxStr}`:''}
-${geo?`Localisation: ${geo} (Suisse)`:'Pays: Suisse'}
+LISTE D'ENTREPRISES:
+${companies}
 
-Fais une recherche web pour trouver les informations officielles de cette entreprise suisse.
-Cherche sur: leur site officiel, local.ch, zefix.ch, moneyhouse.ch, search.ch, linkedin.com.
-
-Champs à trouver: ${lbls}
+CHAMPS À TROUVER POUR CHACUNE: ${lbls}
 
 RÈGLES:
-- Retourne les vraies données trouvées, pas des exemples
-- Si une info est introuvable après recherche, mets null
-- Pour l'adresse: inclus rue, NPA, ville
-- Pour le téléphone: format suisse (+41 ou 0xx xxx xx xx)
-- Ne confonds pas avec une entreprise du même nom dans un autre pays
+- Fais une recherche séparée pour chaque entreprise
+- Retourne les vraies données trouvées (pas des exemples)
+- Si introuvable: null
+- Téléphone: format suisse (+41 ou 0xx xxx xx xx)
+- Adresse: rue + NPA + ville
 
-Réponds UNIQUEMENT avec un JSON valide, sans texte avant ou après, sans backticks:
-{
-${fields.map(f=>`  "${f}": "valeur trouvée ou null"`).join(',\n')}
-}`;
+Réponds UNIQUEMENT avec un tableau JSON valide, sans texte avant ou après, sans backticks:
+[
+${batch.map((_,i)=>`  {"idx":${i}${fields.map(f=>`,\n   "${f}": "valeur ou null"`).join('')}}`).join(',\n')}
+]`;
+
   const r=await fetch('https://api.anthropic.com/v1/messages',{
     method:'POST',headers:{'Content-Type':'application/json'},
-    body:JSON.stringify({model:'claude-sonnet-4-20250514',max_tokens:800,tools:[{type:'web_search_20250305',name:'web_search'}],messages:[{role:'user',content:prompt}]})
+    body:JSON.stringify({
+      model:'claude-sonnet-4-20250514',
+      max_tokens:4000,
+      tools:[{type:'web_search_20250305',name:'web_search'}],
+      messages:[{role:'user',content:prompt}]
+    })
   });
   const d=await r.json();
   const raw=(d.content||[]).filter(b=>b.type==='text').map(b=>b.text).join('');
-  try{const s=raw.indexOf('{'),e=raw.lastIndexOf('}');if(s>=0&&e>s)return{ok:true,data:JSON.parse(raw.slice(s,e+1)),geo};}catch{}
-  return{ok:false,data:null,geo};
+  try{
+    const s=raw.indexOf('['),e=raw.lastIndexOf(']');
+    if(s>=0&&e>s){
+      const arr=JSON.parse(raw.slice(s,e+1));
+      // Map results back to batch items
+      return batch.map((b,i)=>{
+        const found=arr.find(x=>x.idx===i)||arr[i]||null;
+        return{ok:!!found,data:found,geo:detectGeo(b.ctx,b.row)};
+      });
+    }
+  }catch{}
+  return batch.map(()=>({ok:false,data:null,geo:null}));
+}
+
+// Kept for fallback
+async function enrichOne(company,ctx,fields,row){
+  const results=await enrichBatch([{company,ctx,row,idx:0}],fields);
+  return results[0];
 }
 
 // ─── ENRICH RENDER ────────────────────────────────────────────
