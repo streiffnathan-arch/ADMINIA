@@ -1,4 +1,5 @@
 <!DOCTYPE html>
+
 <html lang="fr">
 <head>
 <meta charset="UTF-8"/>
@@ -8,72 +9,42 @@
 <meta name="apple-mobile-web-app-title" content="AdminAI"/>
 <meta name="theme-color" content="#0f1117"/>
 <title>AdminAI</title>
-
 <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
-
 <style>
 @import url('https://fonts.googleapis.com/css2?family=DM+Serif+Display&family=DM+Mono:wght@400;500&family=DM+Sans:wght@300;400;500&display=swap');
-
 *,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
-
 :root{
   --bg:#0f1117;--sur:#171c27;--sur2:#1e2535;--bdr:#2a3347;
   --acc:#f0a830;--acc2:#e07c1a;--txt:#e8eaf0;--txt2:#8892a4;--txt3:#5a6478;
   --ok:#3dd68c;--bad:#e05555;--r:13px
 }
-
 html,body{height:100%;background:var(--bg);font-family:'DM Sans',sans-serif;color:var(--txt)}
 .app{display:flex;flex-direction:column;height:100dvh;max-width:1080px;margin:0 auto}
-
-/* Header */
-.hdr{
-  display:flex;align-items:center;justify-content:space-between;padding:12px 15px;
-  border-bottom:1px solid var(--bdr);background:var(--sur);position:sticky;top:0;z-index:20;gap:8px;flex-wrap:wrap
-}
+.hdr{display:flex;align-items:center;justify-content:space-between;padding:12px 15px;border-bottom:1px solid var(--bdr);background:var(--sur);position:sticky;top:0;z-index:20;gap:8px;flex-wrap:wrap}
 .hdr-l{display:flex;align-items:center;gap:9px}
-.logo{
-  width:31px;height:31px;background:var(--acc);border-radius:8px;display:flex;align-items:center;justify-content:center;
-  font-family:'DM Serif Display';font-size:16px;color:#0f1117;font-weight:700;flex-shrink:0
-}
+.logo{width:31px;height:31px;background:var(--acc);border-radius:8px;display:flex;align-items:center;justify-content:center;font-family:'DM Serif Display';font-size:16px;color:#0f1117;font-weight:700;flex-shrink:0}
 .appname{font-family:'DM Serif Display';font-size:17px}
 .appsub{font-size:10px;color:var(--txt3);font-family:'DM Mono'}
 .tabs{display:flex;gap:3px;background:var(--sur2);border-radius:9px;padding:3px}
-.tab{
-  padding:5px 11px;border-radius:7px;font-size:12px;border:none;cursor:pointer;background:transparent;color:var(--txt2);
-  font-family:'DM Mono';transition:all .15s
-}
+.tab{padding:5px 11px;border-radius:7px;font-size:12px;border:none;cursor:pointer;background:transparent;color:var(--txt2);font-family:'DM Mono';transition:all .15s}
 .tab.on{background:var(--acc);color:#0f1117;font-weight:600}
 .tgl-w{display:flex;align-items:center;gap:5px;cursor:pointer}
 .tgl-lb{font-size:11px;color:var(--txt2);font-family:'DM Mono'}
-.tgl{
-  width:35px;height:19px;border-radius:10px;background:var(--bdr);position:relative;border:none;cursor:pointer;
-  transition:background .2s;flex-shrink:0
-}
+.tgl{width:35px;height:19px;border-radius:10px;background:var(--bdr);position:relative;border:none;cursor:pointer;transition:background .2s;flex-shrink:0}
 .tgl.on{background:var(--acc)}
-.tgl::after{
-  content:'';position:absolute;top:2px;left:2px;width:15px;height:15px;border-radius:50%;background:#fff;transition:transform .2s
-}
+.tgl::after{content:'';position:absolute;top:2px;left:2px;width:15px;height:15px;border-radius:50%;background:#fff;transition:transform .2s}
 .tgl.on::after{transform:translateX(16px)}
-
-/* Panels */
 .panel{display:none;flex:1;flex-direction:column;overflow:hidden}
 .panel.active{display:flex}
-
-/* Chat */
 .msgs{flex:1;overflow-y:auto;padding:15px;display:flex;flex-direction:column;gap:12px}
 .msg{display:flex;flex-direction:column;gap:3px}
 .msg.u{align-items:flex-end}.msg.a{align-items:flex-start}
-.bub{
-  max-width:82%;padding:10px 14px;border-radius:var(--r);line-height:1.65;font-size:14px;white-space:pre-wrap;word-break:break-word
-}
+.bub{max-width:82%;padding:10px 14px;border-radius:var(--r);line-height:1.65;font-size:14px;white-space:pre-wrap;word-break:break-word}
 .msg.u .bub{background:#1e2d4a;border-bottom-right-radius:4px}
 .msg.a .bub{background:#1a2030;border-bottom-left-radius:4px;border:1px solid var(--bdr)}
 .msg-meta{font-size:11px;color:var(--txt3);font-family:'DM Mono';padding:0 3px}
 .fchips{display:flex;flex-wrap:wrap;gap:5px;margin-bottom:6px}
-.fchip{
-  padding:3px 9px;background:rgba(240,168,48,.12);border:1px solid rgba(240,168,48,.3);
-  border-radius:20px;font-size:11px;color:var(--acc);font-family:'DM Mono'
-}
+.fchip{padding:3px 9px;background:rgba(240,168,48,.12);border:1px solid rgba(240,168,48,.3);border-radius:20px;font-size:11px;color:var(--acc);font-family:'DM Mono'}
 .typing{display:flex;gap:5px;align-items:center;padding:12px 14px}
 .dot{width:6px;height:6px;border-radius:50%;background:var(--acc);animation:boun .8s infinite ease-in-out}
 .dot:nth-child(2){animation-delay:.15s}.dot:nth-child(3){animation-delay:.3s}
@@ -82,80 +53,48 @@ html,body{height:100%;background:var(--bg);font-family:'DM Sans',sans-serif;colo
 .welcome h2{font-family:'DM Serif Display';font-size:22px}
 .welcome p{color:var(--txt2);font-size:13px;max-width:300px;line-height:1.7}
 .wcaps{display:flex;gap:6px;flex-wrap:wrap;justify-content:center}
-.wcap{
-  padding:5px 10px;border-radius:20px;background:var(--sur2);border:1px solid var(--bdr);
-  font-size:11px;color:var(--txt2);font-family:'DM Mono'
-}
+.wcap{padding:5px 10px;border-radius:20px;background:var(--sur2);border:1px solid var(--bdr);font-size:11px;color:var(--txt2);font-family:'DM Mono'}
 .inpz{border-top:1px solid var(--bdr);background:var(--sur);padding:10px 13px;display:flex;flex-direction:column;gap:7px}
 .attfs{display:flex;gap:6px;flex-wrap:wrap}
-.attch{
-  display:flex;align-items:center;gap:5px;padding:4px 8px;background:var(--sur2);border:1px solid var(--bdr);
-  border-radius:7px;font-size:12px;color:var(--txt2)
-}
+.attch{display:flex;align-items:center;gap:5px;padding:4px 8px;background:var(--sur2);border:1px solid var(--bdr);border-radius:7px;font-size:12px;color:var(--txt2)}
 .rmbtn{background:none;border:none;color:var(--txt3);cursor:pointer;font-size:13px;padding:0 2px}
 .inpr{display:flex;gap:6px;align-items:flex-end}
-.attb,.sndb{
-  flex-shrink:0;border:none;cursor:pointer;border-radius:9px;display:flex;align-items:center;justify-content:center;
-  font-size:16px;width:41px;height:41px;transition:all .15s
-}
+.attb,.sndb{flex-shrink:0;border:none;cursor:pointer;border-radius:9px;display:flex;align-items:center;justify-content:center;font-size:16px;width:41px;height:41px;transition:all .15s}
 .attb{background:var(--sur2);border:1px solid var(--bdr);color:var(--txt2)}
 .attb:hover{border-color:var(--acc);color:var(--acc)}
 .sndb{background:var(--acc);color:#0f1117}
 .sndb:disabled{background:var(--bdr);color:var(--txt3);cursor:default}
-#chat-input{
-  flex:1;background:var(--sur2);border:1px solid var(--bdr);color:var(--txt);border-radius:9px;padding:10px 12px;
-  font-family:'DM Sans';font-size:14px;resize:none;outline:none;line-height:1.5;max-height:100px
-}
+#chat-input{flex:1;background:var(--sur2);border:1px solid var(--bdr);color:var(--txt);border-radius:9px;padding:10px 12px;font-family:'DM Sans';font-size:14px;resize:none;outline:none;line-height:1.5;max-height:100px}
 #chat-input:focus{border-color:var(--acc)}
 #chat-input::placeholder{color:var(--txt3)}
 .hint{font-size:11px;color:var(--txt3);font-family:'DM Mono';text-align:center}
-
-/* Enrich */
 .epane{flex:1;overflow-y:auto}
 .sec{padding:15px;border-bottom:1px solid var(--bdr)}
 .stitle{font-family:'DM Serif Display';font-size:16px;margin-bottom:7px}
 .sdesc{font-size:13px;color:var(--txt2);line-height:1.6;margin-bottom:9px}
-.dropz{
-  border:1.5px dashed var(--bdr);border-radius:var(--r);padding:20px;display:flex;flex-direction:column;
-  align-items:center;gap:7px;cursor:pointer;transition:all .15s;text-align:center
-}
+.dropz{border:1.5px dashed var(--bdr);border-radius:var(--r);padding:20px;display:flex;flex-direction:column;align-items:center;gap:7px;cursor:pointer;transition:all .15s;text-align:center}
 .dropz:hover{border-color:var(--acc);background:rgba(240,168,48,.05)}
 .dropz-ico{font-size:26px}
 .dropz-txt{font-size:13px;color:var(--txt2)}
 .dropz-sub{font-size:11px;color:var(--txt3);font-family:'DM Mono'}
 .sheets{display:flex;flex-wrap:wrap;gap:6px;margin-top:8px}
-.shbtn{
-  padding:6px 12px;border-radius:8px;border:1px solid var(--bdr);background:var(--sur2);font-size:12px;
-  color:var(--txt2);cursor:pointer;font-family:'DM Mono';transition:all .15s
-}
+.shbtn{padding:6px 12px;border-radius:8px;border:1px solid var(--bdr);background:var(--sur2);font-size:12px;color:var(--txt2);cursor:pointer;font-family:'DM Mono';transition:all .15s}
 .shbtn.on{background:rgba(240,168,48,.15);border-color:var(--acc);color:var(--acc)}
 .cgrid{display:grid;grid-template-columns:1fr 1fr;gap:6px;margin-top:8px}
 .crow{display:flex;align-items:center;gap:6px;background:var(--sur2);border:1px solid var(--bdr);border-radius:9px;padding:8px 10px}
 .clbl{font-size:12px;color:var(--txt2);flex:1}
 .clbl small{display:block;font-size:10px;color:var(--txt3);font-family:'DM Mono';margin-top:1px}
-select{
-  background:var(--sur);border:1px solid var(--bdr);color:var(--txt2);border-radius:6px;padding:4px 6px;
-  font-size:11px;font-family:'DM Mono';outline:none;cursor:pointer;max-width:140px;width:100%
-}
+select{background:var(--sur);border:1px solid var(--bdr);color:var(--txt2);border-radius:6px;padding:4px 6px;font-size:11px;font-family:'DM Mono';outline:none;cursor:pointer;max-width:140px;width:100%}
 select:focus{border-color:var(--acc)}
 option{background:var(--sur)}
 .fcs{display:flex;flex-wrap:wrap;gap:5px;margin-top:8px}
-.fc{
-  padding:5px 11px;border-radius:20px;border:1px solid var(--bdr);background:var(--sur2);font-size:12px;color:var(--txt2);
-  cursor:pointer;font-family:'DM Mono';transition:all .15s;user-select:none
-}
+.fc{padding:5px 11px;border-radius:20px;border:1px solid var(--bdr);background:var(--sur2);font-size:12px;color:var(--txt2);cursor:pointer;font-family:'DM Mono';transition:all .15s;user-select:none}
 .fc.on{background:rgba(240,168,48,.15);border-color:var(--acc);color:var(--acc)}
 .pvw{overflow-x:auto;border-radius:10px;border:1px solid var(--bdr);max-height:260px;overflow-y:auto;margin-top:8px}
 table{width:100%;border-collapse:collapse;font-size:12px}
 thead tr{background:var(--sur2);position:sticky;top:0}
-th{
-  padding:7px 10px;text-align:left;color:var(--txt2);font-family:'DM Mono';font-size:10px;white-space:nowrap;
-  border-bottom:1px solid var(--bdr)
-}
-td{
-  padding:7px 10px;border-bottom:1px solid rgba(42,51,71,.5);color:var(--txt);white-space:nowrap;max-width:220px;
-  overflow:hidden;text-overflow:ellipsis;vertical-align:top
-}
+th{padding:7px 10px;text-align:left;color:var(--txt2);font-family:'DM Mono';font-size:10px;white-space:nowrap;border-bottom:1px solid var(--bdr)}
+td{padding:7px 10px;border-bottom:1px solid rgba(42,51,71,.5);color:var(--txt);white-space:nowrap;max-width:220px;overflow:hidden;text-overflow:ellipsis;vertical-align:top}
 tr:last-child td{border-bottom:none}
 .te{color:var(--txt3);font-style:italic;font-size:11px}
 .tf{color:var(--ok)}
@@ -167,17 +106,11 @@ tr:last-child td{border-bottom:none}
 input[type=range]{width:100%;accent-color:var(--acc);cursor:pointer}
 .speed-row{display:flex;justify-content:space-between;font-size:10px;color:var(--txt3);font-family:'DM Mono';margin-top:3px}
 .speed-est{font-size:11px;color:var(--ok);margin-top:6px;font-family:'DM Mono'}
-.runbtn{
-  padding:10px 20px;background:var(--acc);color:#0f1117;border:none;border-radius:10px;font-size:14px;font-weight:600;
-  cursor:pointer;transition:all .15s;display:inline-flex;align-items:center;gap:7px
-}
+.runbtn{padding:10px 20px;background:var(--acc);color:#0f1117;border:none;border-radius:10px;font-size:14px;font-weight:600;cursor:pointer;transition:all .15s;display:inline-flex;align-items:center;gap:7px}
 .runbtn:hover{background:var(--acc2)}
 .runbtn:disabled{background:var(--bdr);color:var(--txt3);cursor:default}
 .run-info{font-size:12px;color:var(--txt2);margin-top:8px}
-.wlbanner{
-  display:flex;align-items:flex-start;gap:9px;padding:10px 12px;border-radius:10px;font-size:12px;line-height:1.5;
-  background:rgba(61,214,140,.1);border:1px solid rgba(61,214,140,.25);color:var(--ok);margin-bottom:11px
-}
+.wlbanner{display:flex;align-items:flex-start;gap:9px;padding:10px 12px;border-radius:10px;font-size:12px;line-height:1.5;background:rgba(61,214,140,.1);border:1px solid rgba(61,214,140,.25);color:var(--ok);margin-bottom:11px}
 .wlico{font-size:16px;flex-shrink:0;margin-top:1px}
 .wltxt b{display:block;font-weight:600;margin-bottom:1px;font-size:13px}
 .wltxt span{opacity:.85;font-size:11px}
@@ -193,61 +126,40 @@ input[type=range]{width:100%;accent-color:var(--acc);cursor:pointer}
 .srow{display:flex;justify-content:space-between;align-items:center;gap:8px}
 .slbl{font-size:11px;color:var(--txt2);font-family:'DM Mono'}
 .sval{font-size:12px;color:var(--txt);font-family:'DM Mono';font-weight:500}
-.donebanner{
-  background:rgba(61,214,140,.08);border:1px solid rgba(61,214,140,.2);border-radius:12px;padding:13px;
-  display:flex;align-items:center;gap:11px;margin-bottom:11px
-}
+.donebanner{background:rgba(61,214,140,.08);border:1px solid rgba(61,214,140,.2);border-radius:12px;padding:13px;display:flex;align-items:center;gap:11px;margin-bottom:11px}
 .doneico{font-size:28px}
 .donetxt b{font-family:'DM Serif Display';font-size:16px;color:var(--ok);display:block}
 .donetxt span{font-size:12px;color:var(--txt2)}
 .exbtns{display:flex;gap:6px;flex-wrap:wrap;margin-top:10px}
-.exbtn{
-  padding:7px 12px;border-radius:7px;font-size:11px;font-family:'DM Mono';background:var(--sur2);
-  border:1px solid var(--bdr);color:var(--txt2);cursor:pointer;transition:all .15s
-}
+.exbtn{padding:7px 12px;border-radius:7px;font-size:11px;font-family:'DM Mono';background:var(--sur2);border:1px solid var(--bdr);color:var(--txt2);cursor:pointer;transition:all .15s}
 .exbtn:hover{border-color:var(--ok);color:var(--ok)}
 .badge{display:inline-flex;align-items:center;padding:2px 7px;border-radius:20px;font-size:10px;font-family:'DM Mono'}
 .bok{background:rgba(61,214,140,.12);color:var(--ok);border:1px solid rgba(61,214,140,.3)}
 .bpart{background:rgba(240,168,48,.12);color:var(--acc);border:1px solid rgba(240,168,48,.3)}
 .bno{background:rgba(224,85,85,.1);color:var(--bad);border:1px solid rgba(224,85,85,.25)}
-.geo-tag{
-  font-size:10px;color:var(--txt3);font-family:'DM Mono';background:var(--sur);border:1px solid var(--bdr);
-  border-radius:4px;padding:1px 5px
-}
-.warn{
-  padding:10px 12px;background:rgba(224,85,85,.08);border:1px solid rgba(224,85,85,.18);border-radius:10px;
-  color:#ffb8b8;font-size:12px;line-height:1.5
-}
-
+.geo-tag{font-size:10px;color:var(--txt3);font-family:'DM Mono';background:var(--sur);border:1px solid var(--bdr);border-radius:4px;padding:1px 5px}
+.warn{padding:10px 12px;background:rgba(224,85,85,.08);border:1px solid rgba(224,85,85,.18);border-radius:10px;color:#ffb8b8;font-size:12px;line-height:1.5}
 ::-webkit-scrollbar{width:3px}
 ::-webkit-scrollbar-thumb{background:var(--bdr);border-radius:3px}
 </style>
 </head>
 <body>
 <div class="app">
-
-  <!-- HEADER -->
   <div class="hdr">
     <div class="hdr-l">
       <div class="logo">A</div>
-      <div>
-        <div class="appname">AdminAI</div>
-        <div class="appsub">Claude API · Excel Enrichment</div>
-      </div>
+      <div><div class="appname">AdminAI</div><div class="appsub">Claude API · Excel Enrichment</div></div>
     </div>
-
     <div class="tabs">
       <button class="tab on" onclick="switchTab('chat')">💬 Assistant</button>
       <button class="tab" onclick="switchTab('enrich')">📊 Enrichir Excel</button>
     </div>
-
     <div class="tgl-w" onclick="toggleWebSearch()">
       <span class="tgl-lb">Web</span>
       <button class="tgl on" id="wsBtn"></button>
     </div>
   </div>
 
-  <!-- CHAT PANEL -->
   <div class="panel active" id="chatPanel">
     <div class="msgs" id="msgList">
       <div class="welcome" id="welcomeMsg">
@@ -255,14 +167,11 @@ input[type=range]{width:100%;accent-color:var(--acc);cursor:pointer}
         <h2>Assistant Administratif</h2>
         <p>Analyse des documents, répond à tes questions et enrichit des fichiers Excel.</p>
         <div class="wcaps">
-          <span class="wcap">📄 PDF</span>
-          <span class="wcap">📊 Excel</span>
-          <span class="wcap">📝 Word</span>
-          <span class="wcap">🔍 Web</span>
+          <span class="wcap">📄 PDF</span><span class="wcap">📊 Excel</span>
+          <span class="wcap">📝 Word</span><span class="wcap">🔍 Web</span>
         </div>
       </div>
     </div>
-
     <div class="inpz">
       <div class="attfs" id="chatAttached"></div>
       <div class="inpr">
@@ -274,13 +183,11 @@ input[type=range]{width:100%;accent-color:var(--acc);cursor:pointer}
       </div>
       <div class="hint">Entrée pour envoyer · Maj+Entrée nouvelle ligne</div>
     </div>
-
     <input type="file" id="chatFileIn" style="display:none" multiple
       accept=".pdf,.xlsx,.xls,.csv,.docx,.txt,.png,.jpg,.jpeg"
       onchange="addChatFiles(this.files)"/>
   </div>
 
-  <!-- ENRICH PANEL -->
   <div class="panel" id="enrichPanel">
     <div class="epane" id="enrichContent"></div>
   </div>
@@ -289,46 +196,28 @@ input[type=range]{width:100%;accent-color:var(--acc);cursor:pointer}
 <input type="file" id="xlsFileIn" style="display:none" accept=".xlsx,.xls,.csv" onchange="loadXls(this.files[0])"/>
 
 <script>
-// ============================================================
-// CONFIG
-// ============================================================
-const API_KEY = 'ANTHROPIC_API_KEY_PLACEHOLDER';
+// ── CONFIG ──────────────────────────────────────────────────
 const API_URL = 'https://api.anthropic.com/v1/messages';
-const MODEL = 'claude-sonnet-4-20250514';
-
-const CACHE_KEY = 'adminai_enrich_cache_v2';
+const MODEL   = 'claude-sonnet-4-20250514';
+const CACHE_KEY   = 'adminai_enrich_cache_v3';
 const SESSION_KEY = 'adminai_session_v2';
-const CHAT_KEY = 'adminai_chat_history_v1';
-
-const MAX_CHAT_TOKENS = 1500;
-const MAX_ENRICH_TOKENS = 4000;
-
+const CHAT_KEY    = 'adminai_chat_history_v1';
+const MAX_CHAT_TOKENS   = 1500;
+const MAX_ENRICH_TOKENS = 8000;  // plus grand = plus de résultats par batch
 const DEFAULT_BATCH_SIZE = 3;
 const DEFAULT_SPEED = 5;
-const MAX_RETRIES = 3;
+const MAX_RETRIES = 2;
 
-// ============================================================
-// STATE
-// ============================================================
-let wsOn = true;
-let chatFiles = [];
-let chatHistory = [];
-
+// ── STATE ────────────────────────────────────────────────────
+let wsOn = true, chatFiles = [], chatHistory = [];
 let wb = null, sheetNames = [], activeSheet = '';
 let hdrs = [], rows = [];
 let nameCol = '__', colMap = {website:'__',phone:'__',email:'__',address:'__'};
 let selFields = ['website','phone','email','address'];
-
-let speed = DEFAULT_SPEED;
-let batchSize = DEFAULT_BATCH_SIZE;
-
+let speed = DEFAULT_SPEED, batchSize = DEFAULT_BATCH_SIZE;
 let elapsed = 0, timerInterval = null;
-let enrichResults = [], finalWb = null;
-let xfile = null;
-
-let paused = false;
-let stopRequested = false;
-let processing = false;
+let enrichResults = [], finalWb = null, xfile = null;
+let paused = false, stopRequested = false, processing = false;
 
 const FIELDS = [
   {id:'website', label:'🌐 Site web',   kw:['site','web','url','internet','homepage','www']},
@@ -337,163 +226,89 @@ const FIELDS = [
   {id:'address', label:'📍 Adresse',    kw:['adresse','address','rue','street','chemin','avenue','bd','boulevard','route','localité','ville']},
 ];
 
-// ============================================================
-// UTILS
-// ============================================================
-const empty = v => v===null||v===undefined||String(v).trim()==='';
-const fmts = s => s<60?`${s}s`:`${Math.floor(s/60)}m${String(s%60).padStart(2,'0')}s`;
-const ftime = d => d.toLocaleTimeString('fr-CH',{hour:'2-digit',minute:'2-digit'});
-const ext = n => n.split('.').pop().toLowerCase();
-const el = id => document.getElementById(id);
+// ── UTILS ────────────────────────────────────────────────────
+const empty  = v => v===null||v===undefined||String(v).trim()==='';
+const fmts   = s => s<60?`${s}s`:`${Math.floor(s/60)}m${String(s%60).padStart(2,'0')}s`;
+const ftime  = d => d.toLocaleTimeString('fr-CH',{hour:'2-digit',minute:'2-digit'});
+const ext    = n => n.split('.').pop().toLowerCase();
+const el     = id => document.getElementById(id);
+const ficon  = n => ({pdf:'📄',xlsx:'📊',xls:'📊',csv:'📊',docx:'📝',doc:'📝',png:'🖼',jpg:'🖼',jpeg:'🖼',txt:'📃'})[n.split('.').pop().toLowerCase()]||'📎';
+const sleep  = ms => new Promise(r=>setTimeout(r,ms));
+const norm   = s => String(s||'').toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g,'').replace(/[^\w\s]/g,' ').replace(/\s+/g,' ').trim();
+const cacheKey = (company,geo='') => `${norm(company)}|${norm(geo)}`;
 
-const ficon = n => ({
-  pdf:'📄',xlsx:'📊',xls:'📊',csv:'📊',docx:'📝',doc:'📝',png:'🖼',jpg:'🖼',jpeg:'🖼',txt:'📃'
-})[n.split('.').pop().toLowerCase()] || '📎';
+function getCache(){ try{return JSON.parse(localStorage.getItem(CACHE_KEY)||'{}');}catch{return{};} }
+function saveCache(c){ try{localStorage.setItem(CACHE_KEY,JSON.stringify(c));}catch{} }
+function saveChat(){ try{localStorage.setItem(CHAT_KEY,JSON.stringify(chatHistory));}catch{} }
+function loadChat(){ try{return JSON.parse(localStorage.getItem(CHAT_KEY)||'[]');}catch{return[];} }
+function scoreRow(row){ let s=0; Object.values(row).forEach(v=>{if(!empty(v))s++;}); return s; }
+function hasUsefulData(data,fields){ return fields.some(f=>!!data?.[f]); }
 
-function sleep(ms){ return new Promise(r=>setTimeout(r,ms)); }
+async function withRetry(fn,retries=MAX_RETRIES,delay=1500){
+  let last;
+  for(let i=0;i<retries;i++){try{return await fn();}catch(e){last=e;await sleep(delay*(i+1));}}
+  throw last;
+}
+async function waitIfPaused(){ while(paused&&!stopRequested) await sleep(500); }
 
-function norm(s) {
-  return String(s || '')
-    .toLowerCase()
-    .normalize('NFD')
-    .replace(/[\u0300-\u036f]/g, '')
-    .replace(/[^\w\s]/g, ' ')
-    .replace(/\s+/g, ' ')
-    .trim();
+// ── SANITIZERS ───────────────────────────────────────────────
+function cleanWebsite(v){
+  if(!v||v==='null') return null;
+  v=String(v).trim().toLowerCase();
+  // Remove quotes, backticks, extra spaces
+  v=v.replace(/['"` ]/g,'');
+  if(v.length<4) return null;
+  // Strip https/http for storage
+  v=v.replace(/^https?:\/\//,'').replace(/^www\./,'');
+  // Must look like a domain
+  if(!/\.[a-z]{2,}/.test(v)) return null;
+  return v.split('/')[0]; // just domain
 }
-
-function cacheKey(company, geo='') {
-  return `${norm(company)}|${norm(geo)}`;
+function cleanEmail(v){
+  if(!v||v==='null') return null;
+  const m=String(v).match(/[A-Z0-9._%+\-]+@[A-Z0-9.\-]+\.[A-Z]{2,}/i);
+  return m?m[0].toLowerCase():null;
 }
-
-function getCache() {
-  try { return JSON.parse(localStorage.getItem(CACHE_KEY) || '{}'); }
-  catch { return {}; }
-}
-function saveCache(cache) {
-  localStorage.setItem(CACHE_KEY, JSON.stringify(cache));
-}
-function clearCache() {
-  localStorage.removeItem(CACHE_KEY);
-}
-
-function saveSession() {
-  const state = {
-    activeSheet, nameCol, colMap, selFields, speed, batchSize,
-    enrichResults, elapsed, xfileName: xfile?.name || null
-  };
-  localStorage.setItem(SESSION_KEY, JSON.stringify(state));
-}
-function loadSession() {
-  try { return JSON.parse(localStorage.getItem(SESSION_KEY) || 'null'); }
-  catch { return null; }
-}
-function clearSession() {
-  localStorage.removeItem(SESSION_KEY);
-}
-
-function saveChat() {
-  localStorage.setItem(CHAT_KEY, JSON.stringify(chatHistory));
-}
-function loadChat() {
-  try { return JSON.parse(localStorage.getItem(CHAT_KEY) || '[]'); }
-  catch { return []; }
-}
-
-function scoreRow(row) {
-  let score = 0;
-  Object.values(row).forEach(v => { if (!empty(v)) score++; });
-  return score;
-}
-
-function hasUsefulData(data, fields) {
-  if (!data) return false;
-  return fields.some(f => !!data[f]);
-}
-
-async function withRetry(fn, retries = MAX_RETRIES, delay = 1500) {
-  let lastErr;
-  for (let i = 0; i < retries; i++) {
-    try { return await fn(); }
-    catch (e) {
-      lastErr = e;
-      await sleep(delay * (i + 1));
-    }
-  }
-  throw lastErr;
-}
-
-async function waitIfPaused() {
-  while (paused && !stopRequested) {
-    await sleep(500);
-  }
-}
-
-// ============================================================
-// CLEANERS / VALIDATION
-// ============================================================
-function cleanWebsite(v) {
-  if (!v) return null;
-  v = String(v).trim();
-  if (!/^https?:\/\//i.test(v)) v = 'https://' + v;
-  try {
-    const u = new URL(v);
-    return u.hostname.replace(/^www\./, '');
-  } catch {
-    return null;
-  }
-}
-
-function cleanEmail(v) {
-  if (!v) return null;
-  const m = String(v).match(/[A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,}/i);
-  return m ? m[0].toLowerCase() : null;
-}
-
-function cleanSwissPhone(v) {
-  if (!v) return null;
-  let s = String(v).replace(/[^\d+]/g, '');
-  if (s.startsWith('0041')) s = '+41' + s.slice(4);
-  if (s.startsWith('41') && !s.startsWith('+41')) s = '+41' + s.slice(2);
-  if (s.startsWith('0') && s.length >= 10) return s;
-  if (s.startsWith('+41') && s.length >= 11) return s;
+function cleanPhone(v){
+  if(!v||v==='null') return null;
+  let s=String(v).replace(/[^\d+]/g,'');
+  if(s.startsWith('0041')) s='+41'+s.slice(4);
+  else if(s.startsWith('41')&&!s.startsWith('+')) s='+41'+s.slice(2);
+  if(s.startsWith('+41')&&s.length>=11) return s;
+  if(s.startsWith('0')&&s.length>=9&&s.length<=10) return s;
+  // Accept other formats if reasonable length
+  if(s.length>=7&&s.length<=15) return String(v).trim();
   return null;
 }
-
-function cleanAddress(v) {
-  if (!v) return null;
-  v = String(v).trim().replace(/\s+/g, ' ');
-  return v.length >= 8 ? v : null;
+function cleanAddress(v){
+  if(!v||v==='null') return null;
+  v=String(v).trim().replace(/\s+/g,' ');
+  return v.length>=8?v:null;
+}
+function sanitize(data){
+  if(!data) return null;
+  const out={};
+  if(data.website) out.website=cleanWebsite(data.website);
+  if(data.email)   out.email=cleanEmail(data.email);
+  if(data.phone)   out.phone=cleanPhone(data.phone);
+  if(data.address) out.address=cleanAddress(data.address);
+  return out;
 }
 
-function sanitizeData(data) {
-  return {
-    website: cleanWebsite(data.website),
-    email: cleanEmail(data.email),
-    phone: cleanSwissPhone(data.phone),
-    address: cleanAddress(data.address),
-  };
-}
-
-// ============================================================
-// UI
-// ============================================================
-function switchTab(tab) {
+// ── UI ───────────────────────────────────────────────────────
+function switchTab(tab){
   document.querySelectorAll('.tab').forEach((t,i)=>t.classList.toggle('on',i===(tab==='chat'?0:1)));
-  el('chatPanel').classList.toggle('active', tab==='chat');
-  el('enrichPanel').classList.toggle('active', tab==='enrich');
-  el('wsBtn').parentElement.style.display = tab==='chat'?'flex':'none';
+  el('chatPanel').classList.toggle('active',tab==='chat');
+  el('enrichPanel').classList.toggle('active',tab==='enrich');
+  el('wsBtn').parentElement.style.display=tab==='chat'?'flex':'none';
   if(tab==='enrich') renderEnrich();
 }
 function toggleWebSearch(){ wsOn=!wsOn; el('wsBtn').classList.toggle('on',wsOn); }
 
-// ============================================================
-// WAKE LOCK + AUDIO
-// ============================================================
+// ── WAKE LOCK + AUDIO ────────────────────────────────────────
 let _wl=null,_actx=null,_asrc=null;
-
 async function wakeLockOn(){
-  try{ if('wakeLock' in navigator) _wl=await navigator.wakeLock.request('screen'); }catch{}
+  try{if('wakeLock' in navigator) _wl=await navigator.wakeLock.request('screen');}catch{}
   try{
     _actx=new(window.AudioContext||window.webkitAudioContext)();
     const buf=_actx.createBuffer(1,_actx.sampleRate*3,_actx.sampleRate);
@@ -522,328 +337,200 @@ function chime(){
   }catch{}
 }
 
-// ============================================================
-// FILE EXTRACT
-// ============================================================
+// ── FILE EXTRACT ─────────────────────────────────────────────
 async function extractFile(file){
   const e=ext(file.name);
-  if(e==='pdf') return new Promise((res,rej)=>{
-    const r=new FileReader();
-    r.onload=()=>res({type:'pdf',b64:r.result.split(',')[1],name:file.name});
-    r.onerror=rej;r.readAsDataURL(file);
-  });
-
-  if(['png','jpg','jpeg','webp'].includes(e)) return new Promise((res,rej)=>{
-    const r=new FileReader();
-    r.onload=()=>res({type:'img',b64:r.result.split(',')[1],mime:file.type,name:file.name});
-    r.onerror=rej;r.readAsDataURL(file);
-  });
-
-  if(['xlsx','xls','csv'].includes(e)) return new Promise((res,rej)=>{
-    const r=new FileReader();
-    r.onload=ev=>{
-      try{
-        const w=XLSX.read(ev.target.result,{type:'array'});
-        let t='';
-        w.SheetNames.forEach(s=>{
-          t+=`=== ${s} ===\n${XLSX.utils.sheet_to_csv(w.Sheets[s])}\n\n`;
-        });
-        res({type:'txt',text:t.trim(),name:file.name});
-      }catch(err){rej(err);}
-    };
-    r.onerror=rej;r.readAsArrayBuffer(file);
-  });
-
-  return new Promise((res,rej)=>{
-    const r=new FileReader();
-    r.onload=()=>res({type:'txt',text:r.result,name:file.name});
-    r.onerror=rej;r.readAsText(file);
-  });
+  if(e==='pdf') return new Promise((res,rej)=>{const r=new FileReader();r.onload=()=>res({type:'pdf',b64:r.result.split(',')[1],name:file.name});r.onerror=rej;r.readAsDataURL(file);});
+  if(['png','jpg','jpeg','webp'].includes(e)) return new Promise((res,rej)=>{const r=new FileReader();r.onload=()=>res({type:'img',b64:r.result.split(',')[1],mime:file.type,name:file.name});r.onerror=rej;r.readAsDataURL(file);});
+  if(['xlsx','xls','csv'].includes(e)) return new Promise((res,rej)=>{const r=new FileReader();r.onload=ev=>{try{const w=XLSX.read(ev.target.result,{type:'array'});let t='';w.SheetNames.forEach(s=>{t+=`=== ${s} ===\n${XLSX.utils.sheet_to_csv(w.Sheets[s])}\n\n`;});res({type:'txt',text:t.trim(),name:file.name});}catch(err){rej(err);}};r.onerror=rej;r.readAsArrayBuffer(file);});
+  return new Promise((res,rej)=>{const r=new FileReader();r.onload=()=>res({type:'txt',text:r.result,name:file.name});r.onerror=rej;r.readAsText(file);});
 }
 
-// ============================================================
-// CHAT
-// ============================================================
-function addChatFiles(files){
-  Array.from(files).forEach(async f=>{
-    const ex=await extractFile(f).catch(()=>({type:'txt',text:'[Erreur]',name:f.name}));
-    chatFiles.push({file:f,ex});
-    renderAttached();
-  });
-}
-function renderAttached(){
-  el('chatAttached').innerHTML=chatFiles.map((f,i)=>
-    `<div class="attch">${ficon(f.file.name)} ${f.file.name} <button class="rmbtn" onclick="removeChatFile(${i})">×</button></div>`
-  ).join('');
-}
-function removeChatFile(i){ chatFiles.splice(i,1); renderAttached(); }
-
+// ── CHAT ─────────────────────────────────────────────────────
+function addChatFiles(files){Array.from(files).forEach(async f=>{const ex=await extractFile(f).catch(()=>({type:'txt',text:'[Erreur]',name:f.name}));chatFiles.push({file:f,ex});renderAttached();});}
+function renderAttached(){el('chatAttached').innerHTML=chatFiles.map((f,i)=>`<div class="attch">${ficon(f.file.name)} ${f.file.name} <button class="rmbtn" onclick="removeChatFile(${i})">×</button></div>`).join('');}
+function removeChatFile(i){chatFiles.splice(i,1);renderAttached();}
 function appendMsg(role,text,files){
   el('welcomeMsg')?.remove();
-  const div=document.createElement('div');
-  div.className='msg '+(role==='user'?'u':'a');
+  const div=document.createElement('div');div.className='msg '+(role==='user'?'u':'a');
   let html='';
   if(files?.length) html+=`<div class="fchips" style="justify-content:${role==='user'?'flex-end':'flex-start'}">${files.map(f=>`<span class="fchip">${ficon(f)} ${f}</span>`).join('')}</div>`;
   if(text) html+=`<div class="bub">${text.replace(/</g,'&lt;')}</div>`;
   html+=`<div class="msg-meta">${ftime(new Date())}</div>`;
-  div.innerHTML=html;
-  el('msgList').appendChild(div);
-  el('msgList').scrollTop=el('msgList').scrollHeight;
-  return div;
+  div.innerHTML=html;el('msgList').appendChild(div);el('msgList').scrollTop=el('msgList').scrollHeight;
 }
-function showTyping(){
-  const d=document.createElement('div');
-  d.className='msg a';d.id='typing';
-  d.innerHTML='<div class="bub typing"><div class="dot"></div><div class="dot"></div><div class="dot"></div></div>';
-  el('msgList').appendChild(d);
-  el('msgList').scrollTop=el('msgList').scrollHeight;
-}
-function removeTyping(){ el('typing')?.remove(); }
+function showTyping(){const d=document.createElement('div');d.className='msg a';d.id='typing';d.innerHTML='<div class="bub typing"><div class="dot"></div><div class="dot"></div><div class="dot"></div></div>';el('msgList').appendChild(d);el('msgList').scrollTop=el('msgList').scrollHeight;}
+function removeTyping(){el('typing')?.remove();}
+function buildParts(text,files){const p=[];files.forEach(f=>{if(f.type==='pdf'){p.push({type:'document',source:{type:'base64',media_type:'application/pdf',data:f.b64}});p.push({type:'text',text:`[PDF: ${f.name}]`});}else if(f.type==='img'){p.push({type:'image',source:{type:'base64',media_type:f.mime,data:f.b64}});p.push({type:'text',text:`[Image: ${f.name}]`});}else if(f.type==='txt'){p.push({type:'text',text:`[${f.name}]\n\`\`\`\n${f.text}\n\`\`\``});}});if(text.trim())p.push({type:'text',text});return p;}
 
-function buildParts(text,files){
-  const p=[];
-  files.forEach(f=>{
-    if(f.type==='pdf'){
-      p.push({type:'document',source:{type:'base64',media_type:'application/pdf',data:f.b64}});
-      p.push({type:'text',text:`[PDF: ${f.name}]`});
-    } else if(f.type==='img'){
-      p.push({type:'image',source:{type:'base64',media_type:f.mime,data:f.b64}});
-      p.push({type:'text',text:`[Image: ${f.name}]`});
-    } else if(f.type==='txt'){
-      p.push({type:'text',text:`[${f.name}]\n\`\`\`\n${f.text}\n\`\`\``});
-    }
-  });
-  if(text.trim()) p.push({type:'text',text});
-  return p;
-}
-
-async function callAnthropic(body) {
-  const r = await fetch(API_URL, {
-    method:'POST',
-    headers:{
-      'Content-Type':'application/json',
-      'x-api-key': API_KEY,
-      'anthropic-version': '2023-06-01'
-    },
-    body: JSON.stringify(body)
-  });
-
-  if (!r.ok) {
-    const err = await r.text();
-    throw new Error(`API ${r.status}: ${err}`);
-  }
+async function callAPI(body){
+  const r=await fetch(API_URL,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(body)});
+  if(!r.ok){const e=await r.text();throw new Error(`API ${r.status}: ${e}`);}
   return await r.json();
 }
 
 async function sendChat(){
-  const inp=el('chat-input');
-  const text=inp.value.trim();
-  const uf=[...chatFiles];
-  if(!text&&!uf.length) return;
-  inp.value='';inp.style.height='auto';
-  chatFiles=[];renderAttached();
-  el('sendBtn').disabled=true;
-
+  const inp=el('chat-input');const text=inp.value.trim();const uf=[...chatFiles];
+  if(!text&&!uf.length)return;
+  inp.value='';inp.style.height='auto';chatFiles=[];renderAttached();el('sendBtn').disabled=true;
   appendMsg('user',text,uf.map(f=>f.file.name));
   const parts=buildParts(text,uf.map(f=>f.ex));
-  chatHistory.push({role:'user',content:parts});
-  saveChat();
-
+  chatHistory.push({role:'user',content:parts});saveChat();
   showTyping();
   try{
-    const body={
-      model:MODEL,
-      max_tokens:MAX_CHAT_TOKENS,
-      system:'Tu es un assistant administratif expert. Réponds en français, de façon claire, concise et utile.',
-      messages:chatHistory
-    };
-
-    if(wsOn){
-      body.tools=[{type:'web_search_20250305',name:'web_search'}];
-    }
-
-    const d = await withRetry(()=>callAnthropic(body),2,1200);
+    const body={model:MODEL,max_tokens:MAX_CHAT_TOKENS,system:'Tu es un assistant administratif expert. Réponds en français, de façon claire et concise.',messages:chatHistory};
+    if(wsOn) body.tools=[{type:'web_search_20250305',name:'web_search'}];
+    const d=await withRetry(()=>callAPI(body),2,1200);
     const reply=(d.content||[]).filter(b=>b.type==='text').map(b=>b.text).join('\n')||'Pas de réponse.';
-    chatHistory.push({role:'assistant',content:reply});
-    saveChat();
-    removeTyping();
-    appendMsg('assistant',reply);
-  }catch(e){
-    removeTyping();
-    appendMsg('assistant','Erreur: '+e.message);
-  }
+    chatHistory.push({role:'assistant',content:reply});saveChat();
+    removeTyping();appendMsg('assistant',reply);
+  }catch(e){removeTyping();appendMsg('assistant','Erreur: '+e.message);}
   el('sendBtn').disabled=false;
 }
 
-// ============================================================
-// EXCEL
-// ============================================================
+// ── EXCEL ────────────────────────────────────────────────────
 function loadXls(file){
-  if(!file) return;
-  xfile=file;
+  if(!file)return;xfile=file;
   const r=new FileReader();
   r.onload=ev=>{
     try{
       wb=XLSX.read(ev.target.result,{type:'array',cellDates:true});
       sheetNames=wb.SheetNames;
       const pref=sheetNames.find(s=>/data|base|client|gama|liste|list/i.test(s))||sheetNames[0];
-      activeSheet=pref;
-      enrichResults=[];finalWb=null;
-      parseSheet();
-      renderEnrich('config');
+      activeSheet=pref;enrichResults=[];finalWb=null;
+      parseSheet();renderEnrich('config');
     }catch(e){alert('Erreur: '+e.message);}
   };
   r.readAsArrayBuffer(file);
 }
-
 function parseSheet(){
-  const ws=wb.Sheets[activeSheet];
-  if(!ws){hdrs=[];rows=[];return;}
+  const ws=wb.Sheets[activeSheet];if(!ws){hdrs=[];rows=[];return;}
   const all=XLSX.utils.sheet_to_json(ws,{header:1,defval:'',raw:false});
-  let hi=0;
-  for(let i=0;i<Math.min(all.length,10);i++){
-    if(all[i].filter(c=>String(c).trim()).length>=2){hi=i;break;}
-  }
-
+  let hi=0;for(let i=0;i<Math.min(all.length,10);i++){if(all[i].filter(c=>String(c).trim()).length>=2){hi=i;break;}}
   hdrs=all[hi].map((h,i)=>({i,lbl:String(h).trim()||`Col${i+1}`,raw:String(h).trim()}));
-  rows=all.slice(hi+1).filter(r=>r.some(c=>String(c).trim())).map((r,ri)=>{
-    const o={_row:hi+1+ri+1};
-    hdrs.forEach((h,i)=>{o[h.lbl]=r[i]!==undefined?String(r[i]).trim():'';});
-    return o;
-  });
-
+  rows=all.slice(hi+1).filter(r=>r.some(c=>String(c).trim())).map((r,ri)=>{const o={_row:hi+1+ri+1};hdrs.forEach((h,i)=>{o[h.lbl]=r[i]!==undefined?String(r[i]).trim():'';});return o;});
   const nameKw=['nom','name','entreprise','company','client','raison','société','societe'];
   nameCol=hdrs.find(h=>nameKw.some(k=>h.raw.toLowerCase().includes(k)))?.lbl||hdrs[0]?.lbl||'__';
-
-  FIELDS.forEach(f=>{
-    const m=hdrs.find(h=>f.kw.some(k=>h.raw.toLowerCase().includes(k)));
-    colMap[f.id]=m?m.lbl:'__';
-  });
+  FIELDS.forEach(f=>{const m=hdrs.find(h=>f.kw.some(k=>h.raw.toLowerCase().includes(k)));colMap[f.id]=m?m.lbl:'__';});
 }
-
 function rowsToEnrich(){
   return rows.filter(row=>{
-    if(nameCol==='__'||!row[nameCol]||!String(row[nameCol]).trim()) return false;
-    return selFields.some(fid=>{
-      const c=colMap[fid];
-      return c&&c!=='__'&&empty(row[c]);
-    });
+    if(nameCol==='__'||!row[nameCol]||!String(row[nameCol]).trim())return false;
+    return selFields.some(fid=>{const c=colMap[fid];return c&&c!=='__'&&empty(row[c]);});
   }).sort((a,b)=>scoreRow(b)-scoreRow(a));
 }
 
-// ============================================================
-// GEO
-// ============================================================
+// ── GEO ──────────────────────────────────────────────────────
 function detectGeo(ctx,row){
   const gkw=['ville','city','pays','country','canton','npa','zip','code postal','localité','localite','adresse','address','siège','siege','hq','headquarter','location','région','region'];
   const vals=[];
-  Object.entries({...ctx,...row}).forEach(([k,v])=>{
-    if(!v||k==='_row') return;
-    if(gkw.some(g=>k.toLowerCase().includes(g))) vals.push(String(v).trim());
-  });
-  return [...new Set(vals)].filter(v=>v.length>1).join(', ') || null;
+  Object.entries({...ctx,...row}).forEach(([k,v])=>{if(!v||k==='_row')return;if(gkw.some(g=>k.toLowerCase().includes(g)))vals.push(String(v).trim());});
+  return[...new Set(vals)].filter(v=>v.length>1).join(', ')||null;
 }
 
-// ============================================================
-// ENRICH CORE
-// ============================================================
+// ── ENRICH CORE ── PROMPT OPTIMISÉ ───────────────────────────
 async function enrichBatch(batch, fields){
-  const lbls=fields.map(f=>FIELDS.find(x=>x.id===f)?.label.replace(/^[^ ]+ /,'')).join(', ');
+  const lbls = fields.map(f => FIELDS.find(x=>x.id===f)?.label.replace(/^[^ ]+ /,'')).join(', ');
 
-  const companies=batch.map((b,i)=>{
-    const ctxParts=[];
-    Object.entries({...b.ctx,...b.row}).forEach(([k,v])=>{
-      if(k==='_row'||!v||String(v).trim().length<2) return;
-      ctxParts.push(`${k}: ${v}`);
-    });
-    const ctx=[...new Set(ctxParts)].slice(0,5).join(' | ');
-    const geo=detectGeo(b.ctx,b.row);
-    return `${i+1}. "${b.company}"${ctx?' — '+ctx:''}${geo?' ('+geo+')':''}`;
+  // Build detailed company lines with all available context
+  const companyLines = batch.map((b, i) => {
+    const parts = [`${i+1}. "${b.company}"`];
+    // Add all non-empty context values
+    const ctxVals = Object.entries({...b.ctx, ...b.row})
+      .filter(([k,v]) => k !== '_row' && !empty(v) && String(v).length > 1)
+      .map(([k,v]) => `${k}=${v}`)
+      .slice(0, 6);
+    if(ctxVals.length) parts.push(`[${ctxVals.join(', ')}]`);
+    return parts.join(' ');
   }).join('\n');
 
-  const prompt=`Tu es un assistant de recherche commerciale spécialisé dans l’enrichissement de bases de données d’entreprises.
+  // Build the expected JSON template
+  const jsonTemplate = batch.map((_,i) =>
+    `  {"idx":${i}${fields.map(f=>`,\n   "${f}":null`).join('')}}`
+  ).join(',\n');
 
-Ta mission : retrouver des informations fiables sur CHAQUE entreprise de la liste.
+  const prompt = `You are a Swiss business data researcher. Your job is to find real, accurate contact information for Swiss companies.
 
-Sources prioritaires :
-- site officiel
-- local.ch
-- search.ch
-- zefix.ch
-- moneyhouse.ch
-- annuaires professionnels
-- registre du commerce
+For EACH company below, search the web and return its official contact details.
 
-LISTE D'ENTREPRISES :
-${companies}
+SEARCH STRATEGY (in order):
+1. Search "[company name] site:local.ch" → get phone + address
+2. Search "[company name] site:search.ch" → get phone + address  
+3. Search "[company name] Switzerland official website" → get website + email
+4. Search "[company name] site:moneyhouse.ch" → verify address
+5. If city known: search "[company name] [city] Switzerland contact"
 
-CHAMPS À TROUVER :
-${lbls}
+COMPANIES TO RESEARCH:
+${companyLines}
 
-RÈGLES STRICTES :
-- Une recherche distincte pour chaque entreprise
-- Ne retourne QUE des informations plausibles et réelles
-- Si introuvable : null
-- Téléphone : format suisse si possible (+41 ou 0xx ...)
-- Site web : domaine principal propre
-- Email : email professionnel
-- Adresse : adresse suffisamment exploitable
-- Ne jamais inventer
-- Si ambigu, préfère null
+FIELDS NEEDED FOR EACH: ${lbls}
 
-Réponds UNIQUEMENT avec un tableau JSON valide, sans texte avant ou après, sans backticks :
+CRITICAL RULES:
+- Search for EACH company individually — do not skip any
+- Return ONLY real data found on the web, never invent
+- If not found after searching: use null
+- website: domain only, no https:// prefix (e.g. "example.ch")  
+- email: lowercase professional email
+- phone: Swiss format if possible (e.g. "+41 22 123 45 67" or "022 123 45 67")
+- address: full address with street, NPA and city
+- Do NOT confuse with companies of same name in other countries
+
+Respond ONLY with a valid JSON array, no text before or after, no markdown backticks:
 [
-${batch.map((_,i)=>`  {"idx":${i}${fields.map(f=>`,\n   "${f}": "valeur ou null"`).join('')}}`).join(',\n')}
+${jsonTemplate}
 ]`;
 
   const body = {
     model: MODEL,
     max_tokens: MAX_ENRICH_TOKENS,
-    tools:[{type:'web_search_20250305',name:'web_search'}],
-    messages:[{role:'user',content:prompt}]
+    tools: [{type:'web_search_20250305', name:'web_search'}],
+    messages: [{role:'user', content:prompt}]
   };
 
-  const d = await callAnthropic(body);
-  const raw=(d.content||[]).filter(b=>b.type==='text').map(b=>b.text).join('');
+  const d = await callAPI(body);
+  const raw = (d.content||[]).filter(b=>b.type==='text').map(b=>b.text).join('');
 
+  // Try to parse JSON array
   try{
-    const s=raw.indexOf('['),e=raw.lastIndexOf(']');
+    const s=raw.indexOf('['), e=raw.lastIndexOf(']');
     if(s>=0&&e>s){
-      const arr=JSON.parse(raw.slice(s,e+1));
+      const arr = JSON.parse(raw.slice(s,e+1));
       return batch.map((b,i)=>{
-        const found=arr.find(x=>x.idx===i)||arr[i]||null;
-        return{ok:!!found,data:sanitizeData(found||{}),geo:detectGeo(b.ctx,b.row)};
+        const found = arr.find(x=>Number(x.idx)===i) || arr[i] || null;
+        const geo = detectGeo(b.ctx,b.row);
+        return {ok:!!found, data:sanitize(found||{}), geo};
       });
     }
   }catch{}
 
-  return batch.map(()=>({ok:false,data:null,geo:null}));
+  // Fallback: try to extract individual JSON objects
+  const fallback = batch.map((b,i)=>{
+    const geo = detectGeo(b.ctx,b.row);
+    try{
+      // Look for object with idx:i
+      const rx = new RegExp(`\\{[^}]*"idx"\\s*:\\s*${i}[^}]*\\}`,'s');
+      const m = raw.match(rx);
+      if(m) return {ok:true, data:sanitize(JSON.parse(m[0])), geo};
+    }catch{}
+    return {ok:false, data:null, geo};
+  });
+  return fallback;
 }
 
-// ============================================================
-// RENDER ENRICH
-// ============================================================
+// ── RENDER ENRICH ────────────────────────────────────────────
 function renderEnrich(step){
   const c=el('enrichContent');
-
-  if(!step){
-    if(!wb) step='upload';
-    else if(enrichResults.length>0&&finalWb) step='done';
-    else step='config';
-  }
+  if(!step){ if(!wb) step='upload'; else if(enrichResults.length>0&&finalWb) step='done'; else step='config'; }
 
   if(step==='upload'){
     c.innerHTML=`
     <div class="sec">
       <div class="stitle">Enrichir un fichier Excel</div>
-      <div class="sdesc">Importe ton fichier Excel. AdminAI détecte les onglets, identifie les colonnes et complète les données manquantes via internet.</div>
+      <div class="sdesc">Importe ton fichier. AdminAI cherche automatiquement les informations sur internet pour chaque entreprise.</div>
       <div class="dropz" onclick="el('xlsFileIn').click()">
         <div class="dropz-ico">📊</div>
         <div class="dropz-txt">Appuie pour choisir ton fichier Excel</div>
         <div class="dropz-sub">.xlsx · .xls · .csv</div>
-      </div>
-      <div style="margin-top:14px" class="warn">
-        ⚠️ Conseil : pour 2’500 lignes, travaille par lots si ton navigateur ou ton API a des limites.
       </div>
     </div>`;
     return;
@@ -851,8 +538,7 @@ function renderEnrich(step){
 
   if(step==='config'){
     const toEnrich=rowsToEnrich();
-    const estSecs=Math.ceil(toEnrich.length/Math.max(1,speed))*28;
-
+    const estSecs=Math.ceil(toEnrich.length/Math.max(1,speed)*batchSize)*35;
     c.innerHTML=`
     <div class="sec">
       <div style="display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:9px;gap:10px;flex-wrap:wrap">
@@ -861,20 +547,15 @@ function renderEnrich(step){
           <div style="font-size:12px;color:var(--txt2);margin-top:2px">${rows.length} lignes · ${hdrs.length} colonnes</div>
         </div>
         <div style="display:flex;gap:6px;flex-wrap:wrap">
-          <button onclick="wb=null;clearSession();renderEnrich('upload')" class="exbtn">↺ Changer</button>
-          <button onclick="clearCache();alert('Cache supprimé')" class="exbtn">🧹 Vider cache</button>
+          <button onclick="wb=null;renderEnrich('upload')" class="exbtn">↺ Changer</button>
+          <button onclick="saveCache({});alert('Cache vidé ✓')" class="exbtn">🧹 Cache</button>
         </div>
       </div>
-
       <div class="sdesc" style="margin-bottom:5px">Onglets :</div>
-      <div class="sheets">
-        ${sheetNames.map(s=>`<button class="shbtn ${s===activeSheet?'on':''}" onclick="activeSheet='${s}';parseSheet();renderEnrich('config')">${s}</button>`).join('')}
-      </div>
+      <div class="sheets">${sheetNames.map(s=>`<button class="shbtn ${s===activeSheet?'on':''}" onclick="activeSheet='${s}';parseSheet();renderEnrich('config')">${s}</button>`).join('')}</div>
     </div>
-
     <div class="sec">
       <div class="stitle">Colonnes</div>
-
       <div style="margin-bottom:9px">
         <div style="font-size:11px;color:var(--txt2);font-family:'DM Mono';margin-bottom:5px">Identifiant — Nom / Entreprise</div>
         <select style="width:100%;max-width:100%" onchange="nameCol=this.value">
@@ -882,7 +563,6 @@ function renderEnrich(step){
           ${hdrs.map(h=>`<option value="${h.lbl}" ${nameCol===h.lbl?'selected':''}>${h.lbl}</option>`).join('')}
         </select>
       </div>
-
       <div class="cgrid">
         ${FIELDS.map(f=>`
         <div class="crow">
@@ -894,7 +574,6 @@ function renderEnrich(step){
         </div>`).join('')}
       </div>
     </div>
-
     <div class="sec">
       <div class="stitle">Champs à compléter</div>
       <div class="fcs">
@@ -905,7 +584,6 @@ function renderEnrich(step){
         }).join('')}
       </div>
     </div>
-
     <div class="sec">
       <div class="stitle">Aperçu</div>
       <div class="pvw"><table>
@@ -922,15 +600,13 @@ function renderEnrich(step){
       </table></div>
       ${rows.length>10?`<div style="font-size:11px;color:var(--txt3);margin-top:5px;font-family:'DM Mono'">… et ${rows.length-10} autres lignes</div>`:''}
     </div>
-
     <div class="sec" style="border-bottom:none">
       <div class="speed-box">
-        <div class="speed-top"><span class="speed-lbl">⚡ Recherches en parallèle</span><span class="speed-val" id="speedVal">${speed}×</span></div>
-        <input type="range" min="1" max="8" value="${speed}" oninput="speed=Number(this.value);el('speedVal').textContent=speed+'×';el('speedEst').textContent=rowsToEnrich().length>0?'⏱ ~'+fmts(Math.ceil(rowsToEnrich().length/Math.max(1,speed))*28)+' estimé pour '+rowsToEnrich().length+' lignes':''">
-        <div class="speed-row"><span>1× lent</span><span>5× recommandé</span><span>8× rapide</span></div>
+        <div class="speed-top"><span class="speed-lbl">⚡ Lots en parallèle</span><span class="speed-val" id="speedVal">${speed}×</span></div>
+        <input type="range" min="1" max="8" value="${speed}" oninput="speed=Number(this.value);el('speedVal').textContent=speed+'×';el('speedEst').textContent=rowsToEnrich().length>0?'⏱ ~'+fmts(Math.ceil(rowsToEnrich().length/Math.max(1,speed)*batchSize)*35)+' estimé':''">
+        <div class="speed-row"><span>1× lent</span><span>5× recommandé</span><span>8× max</span></div>
         <div class="speed-est" id="speedEst">${toEnrich.length>0?`⏱ ~${fmts(estSecs)} estimé pour ${toEnrich.length} lignes`:''}</div>
       </div>
-
       <button class="runbtn" ${!toEnrich.length||nameCol==='__'||!selFields.length?'disabled':''} onclick="startEnrich()">
         🔍 Enrichir ${toEnrich.length} ligne${toEnrich.length!==1?'s':''}
       </button>
@@ -950,19 +626,17 @@ function renderEnrich(step){
           <span>${ok}/${enrichResults.length} lignes enrichies · Durée : ${fmts(elapsed)}</span>
         </div>
       </div>
-
       <div class="exbtns">
         <button class="exbtn" onclick="exportXls()">⬇️ Excel enrichi</button>
         <button class="exbtn" onclick="exportCsv()">⬇️ CSV</button>
-        <button class="exbtn" onclick="exportProgress()">💾 Sauvegarder progression JSON</button>
-        <button class="exbtn" onclick="enrichResults=[];finalWb=null;clearSession();renderEnrich('config')">↺ Recommencer</button>
+        <button class="exbtn" onclick="exportProgress()">💾 JSON progression</button>
+        <button class="exbtn" onclick="enrichResults=[];finalWb=null;renderEnrich('config')">↺ Recommencer</button>
       </div>
     </div>
-
     <div class="sec" style="border-bottom:none">
       <div class="pvw"><table>
         <thead><tr>
-          <th>Entreprise</th><th>📍 Zone</th>
+          <th>Entreprise</th>
           ${selFields.map(f=>`<th>${FIELDS.find(x=>x.id===f)?.label}</th>`).join('')}
           <th>Statut</th>
         </tr></thead>
@@ -973,7 +647,6 @@ function renderEnrich(step){
             const lbl=filled===r.fn.length?'Complet':filled>0?`${filled}/${r.fn.length}`:'—';
             return`<tr>
               <td class="tn">${r.company}</td>
-              <td>${r.geo?`<span class="geo-tag">${r.geo}</span>`:'<span class="te">—</span>'}</td>
               ${selFields.map(f=>{const v=r.data?.[f],needed=r.fn.includes(f);return`<td>${!needed?'<span class="tf" style="opacity:.4">✓</span>':v&&v!=='null'?`<span class="tf">${v}</span>`:'<span class="te">—</span>'}</td>`;}).join('')}
               <td><span class="badge ${cls}">${lbl}</span></td>
             </tr>`;
@@ -984,37 +657,20 @@ function renderEnrich(step){
   }
 }
 
-function toggleSelField(id){
-  if(selFields.includes(id)) selFields=selFields.filter(x=>x!==id);
-  else selFields.push(id);
-  renderEnrich('config');
-}
+function toggleSelField(id){if(selFields.includes(id)) selFields=selFields.filter(x=>x!==id);else selFields.push(id);renderEnrich('config');}
+function togglePause(){paused=!paused;const b=el('pauseBtn');if(b)b.textContent=paused?'▶️ Reprendre':'⏸ Pause';}
+function requestStop(){stopRequested=true;}
 
-function togglePause() {
-  paused = !paused;
-  const btn = el('pauseBtn');
-  if (btn) btn.textContent = paused ? '▶️ Reprendre' : '⏸ Pause';
-}
-
-function requestStop() {
-  stopRequested = true;
-}
-
-// ============================================================
-// RUN ENRICH
-// ============================================================
+// ── RUN ENRICH ───────────────────────────────────────────────
 async function startEnrich(){
-  if (processing) return;
-  processing = true;
-  paused = false;
-  stopRequested = false;
+  if(processing)return;
+  processing=true;paused=false;stopRequested=false;
 
   const toEnrich=rowsToEnrich();
-  if(!toEnrich.length){ processing = false; return; }
+  if(!toEnrich.length){processing=false;return;}
   const total=toEnrich.length;
 
-  enrichResults=new Array(total).fill(null);
-  finalWb=null;
+  enrichResults=new Array(total).fill(null);finalWb=null;
 
   const c=el('enrichContent');
   c.innerHTML=`
@@ -1022,55 +678,45 @@ async function startEnrich(){
     <div class="wlbanner">
       <div class="wlico">🔆</div>
       <div class="wltxt">
-        <b>Protection veille active · ${speed} recherches en parallèle</b>
-        <span>Boucle audio silencieuse + Wake Lock — iPad maintenu actif. Un son à la fin.</span>
+        <b>Protection veille active · ${speed} lots en parallèle · ${batchSize} entreprises/lot</b>
+        <span>Boucle audio + Wake Lock actifs. Un son te préviendra à la fin.</span>
       </div>
     </div>
-
     <div class="exbtns" style="margin-bottom:10px">
       <button class="exbtn" id="pauseBtn" onclick="togglePause()">⏸ Pause</button>
       <button class="exbtn" onclick="requestStop()">⛔ Stop</button>
-      <button class="exbtn" onclick="exportProgress()">💾 Export progression</button>
+      <button class="exbtn" onclick="exportProgress()">💾 Export</button>
     </div>
-
     <div class="scard">
       <div class="prow">
         <div class="pbar"><div class="pfill" id="pfill" style="width:0%"></div></div>
         <div class="ppct" id="ppct">0/${total}</div>
       </div>
-
       <div>
-        <div style="font-size:11px;color:var(--txt2);font-family:'DM Mono';margin-bottom:5px">${speed} traitements actifs :</div>
+        <div style="font-size:11px;color:var(--txt2);font-family:'DM Mono';margin-bottom:5px">${speed} lots actifs :</div>
         <div class="workers" id="workers">
           ${Array.from({length:speed},(_,i)=>`<div class="wkr" id="wkr${i}"><span class="wkr-ico">⏸</span><span class="wkr-nm" style="color:var(--txt3)">En attente…</span></div>`).join('')}
         </div>
       </div>
-
       <div class="srow">
         <span class="slbl">Durée</span>
         <span class="sval" id="durVal">0s</span>
         <span style="font-size:10px;color:var(--txt3);font-family:'DM Mono'" id="etaVal"></span>
       </div>
-
       <div class="srow">
         <span class="slbl">Enrichies</span>
         <span class="sval" style="color:var(--ok)" id="okVal">0 ✓</span>
       </div>
     </div>
-
     <div class="pvw" id="liveResults" style="display:none"><table>
-      <thead><tr><th>Entreprise</th><th>📍 Zone</th>${selFields.map(f=>`<th>${FIELDS.find(x=>x.id===f)?.label}</th>`).join('')}<th>OK</th></tr></thead>
+      <thead><tr><th>Entreprise</th>${selFields.map(f=>`<th>${FIELDS.find(x=>x.id===f)?.label}</th>`).join('')}<th>OK</th></tr></thead>
       <tbody id="liveBody"></tbody>
     </table></div>
   </div>`;
 
   await wakeLockOn();
   elapsed=0;
-  timerInterval=setInterval(()=>{
-    elapsed++;
-    const dv=el('durVal'); if(dv) dv.textContent=fmts(elapsed);
-  },1000);
-
+  timerInterval=setInterval(()=>{elapsed++;const dv=el('durVal');if(dv)dv.textContent=fmts(elapsed);},1000);
   const origTitle=document.title;
   document.title=`⏳ 0/${total} — AdminAI`;
 
@@ -1079,127 +725,99 @@ async function startEnrich(){
 
   let done=0, batchIdx=0;
 
+  // Build batches
   const batches=[];
   for(let i=0;i<total;i+=batchSize){
     batches.push(toEnrich.slice(i,i+batchSize).map((row,j)=>{
       const ctx={};
-      FIELDS.forEach(f=>{
-        const c=colMap[f.id];
-        if(c&&c!=='__'&&!empty(row[c])) ctx[f.label.replace(/^[^ ]+ /,'')]=row[c];
-      });
-      Object.entries(row).forEach(([k,v])=>{
-        if(k!=='_row'&&!empty(v)&&!Object.values(ctx).includes(v)) ctx[k]=v;
-      });
-      const fn=selFields.filter(fid=>{
-        const c=colMap[fid];
-        return c&&c!=='__'&&empty(row[c]);
-      });
-      return {company:String(row[nameCol]).trim(),ctx,row,fn,globalIdx:i+j};
+      FIELDS.forEach(f=>{const c=colMap[f.id];if(c&&c!=='__'&&!empty(row[c]))ctx[f.label.replace(/^[^ ]+ /,'')]=row[c];});
+      Object.entries(row).forEach(([k,v])=>{if(k!=='_row'&&!empty(v)&&!Object.values(ctx).includes(v))ctx[k]=v;});
+      const fn=selFields.filter(fid=>{const c=colMap[fid];return c&&c!=='__'&&empty(row[c]);});
+      return{company:String(row[nameCol]).trim(),ctx,row,fn,globalIdx:i+j};
     }));
   }
 
   const updateWorker=(wi,text,doneState)=>{
-    const w=el(`wkr${wi}`); if(!w) return;
-    if(doneState){ w.innerHTML=`<span class="wkr-ico">✅</span><span class="wkr-nm" style="color:var(--ok)">Terminé</span>`; }
-    else if(text){ w.innerHTML=`<span class="wkr-ico">⚡</span><span class="wkr-nm" style="color:var(--acc)">${text}</span>`; }
+    const w=el(`wkr${wi}`);if(!w)return;
+    if(doneState){w.innerHTML=`<span class="wkr-ico">✅</span><span class="wkr-nm" style="color:var(--ok)">Terminé</span>`;}
+    else if(text){w.innerHTML=`<span class="wkr-ico">⚡</span><span class="wkr-nm" style="color:var(--acc)">${text}</span>`;}
   };
-
   const updateProgress=()=>{
     const pf=el('pfill'),pp=el('ppct'),ok=el('okVal'),eta=el('etaVal');
-    if(pf) pf.style.width=(done/total*100)+'%';
-    if(pp) pp.textContent=`${done}/${total}`;
+    if(pf)pf.style.width=(done/total*100)+'%';
+    if(pp)pp.textContent=`${done}/${total}`;
     const okCount=enrichResults.filter(r=>r&&r.status==='ok').length;
-    if(ok) ok.textContent=okCount+' ✓';
-    if(eta&&done>0&&done<total) eta.textContent=`~${fmts(Math.round(elapsed/done*(total-done)))} restant`;
+    if(ok)ok.textContent=okCount+' ✓';
+    if(eta&&done>0&&done<total)eta.textContent=`~${fmts(Math.round(elapsed/done*(total-done)))} restant`;
     document.title=`⏳ ${done}/${total} — AdminAI`;
   };
-
   const appendLiveRow=(r)=>{
-    const tb=el('liveBody'); if(!tb) return;
-    const lr=el('liveResults'); if(lr) lr.style.display='';
+    const tb=el('liveBody');if(!tb)return;
+    const lr=el('liveResults');if(lr)lr.style.display='';
     const tr=document.createElement('tr');
-    tr.innerHTML=`<td class="tn">${r.company}</td><td>${r.geo?`<span class="geo-tag">${r.geo}</span>`:'<span class="te">—</span>'}</td>${selFields.map(f=>{const v=r.data?.[f];return`<td>${v&&v!=='null'?`<span class="tf">${v}</span>`:'<span class="te">—</span>'}</td>`;}).join('')}<td><span class="badge ${r.status==='ok'?'bok':'bno'}">${r.status==='ok'?'✓':'—'}</span></td>`;
+    tr.innerHTML=`<td class="tn">${r.company}</td>${selFields.map(f=>{const v=r.data?.[f];return`<td>${v&&v!=='null'?`<span class="tf">${v}</span>`:'<span class="te">—</span>'}</td>`;}).join('')}<td><span class="badge ${r.status==='ok'?'bok':'bno'}">${r.status==='ok'?'✓':'—'}</span></td>`;
     tb.appendChild(tr);
   };
 
-  const cache = getCache();
+  const cache=getCache();
 
   const worker=async(wi)=>{
     while(true){
       await waitIfPaused();
-      if(stopRequested) break;
-
+      if(stopRequested)break;
       const bi=batchIdx++;
-      if(bi>=batches.length) break;
+      if(bi>=batches.length)break;
 
       const batch=batches[bi];
       const names=batch.map(b=>b.company).join(', ');
-      updateWorker(wi,`Lot ${bi+1}: ${names.substring(0,45)}…`,false);
+      updateWorker(wi,`Lot ${bi+1}: ${names.substring(0,50)}…`,false);
 
-      // Cache check per row
-      const cachedResults = [];
-      const needLookup = [];
-
-      batch.forEach((b, j) => {
-        const geo = detectGeo(b.ctx, b.row);
-        const key = cacheKey(b.company, geo || '');
-        if (cache[key]) {
-          cachedResults[j] = {ok:true, data:cache[key], geo};
-        } else {
-          needLookup.push({b, j});
-        }
+      // Check cache
+      const cachedResults=new Array(batch.length).fill(null);
+      const needLookup=[];
+      batch.forEach((b,j)=>{
+        const geo=detectGeo(b.ctx,b.row);
+        const key=cacheKey(b.company,geo||'');
+        if(cache[key]) cachedResults[j]={ok:true,data:cache[key],geo};
+        else needLookup.push({b,j});
       });
 
-      let fetched = [];
-      if (needLookup.length) {
-        try {
-          fetched = await withRetry(() => enrichBatch(needLookup.map(x=>x.b), selFields), 3, 1800);
-        } catch {
-          fetched = needLookup.map(() => ({ok:false,data:null,geo:null}));
+      let fetched=[];
+      if(needLookup.length){
+        try{
+          fetched=await withRetry(()=>enrichBatch(needLookup.map(x=>x.b),selFields),MAX_RETRIES,1800);
+        }catch{
+          fetched=needLookup.map(()=>({ok:false,data:null,geo:null}));
         }
       }
 
-      let fetchedIdx = 0;
-      const finalResults = batch.map((b,j)=>{
-        if (cachedResults[j]) return cachedResults[j];
-        const res = fetched[fetchedIdx++] || {ok:false,data:null,geo:null};
-        const geo = detectGeo(b.ctx, b.row);
-        const key = cacheKey(b.company, geo || '');
-        if (res.ok && res.data && hasUsefulData(res.data, b.fn)) {
-          cache[key] = res.data;
-        }
-        return res;
+      let fi=0;
+      const finalResults=batch.map((b,j)=>{
+        if(cachedResults[j])return cachedResults[j];
+        const res=fetched[fi++]||{ok:false,data:null,geo:null};
+        const geo=detectGeo(b.ctx,b.row);
+        const key=cacheKey(b.company,geo||'');
+        if(res.ok&&res.data&&hasUsefulData(res.data,b.fn)) cache[key]=res.data;
+        return{...res,geo};
       });
-
       saveCache(cache);
 
       finalResults.forEach((res,j)=>{
         const b=batch[j];
-        const row=b.row;
         const bfn=b.fn;
-
         if(res.ok&&res.data){
-          const cleaned = sanitizeData(res.data || {});
           bfn.forEach(fid=>{
-            const c=colMap[fid],val=cleaned[fid];
-            if(c&&c!=='__'&&val&&val!=='null'&&val!==null){
-              const hi=hdrs.find(h=>h.lbl===c)?.i;
-              if(hi!==undefined){
-                const ca=XLSX.utils.encode_cell({r:row._row-1,c:hi});
-                ws[ca]={v:val,t:'s'};
-              }
+            const col=colMap[fid],val=res.data[fid];
+            if(col&&col!=='__'&&val&&val!=='null'&&val!==null){
+              const hi=hdrs.find(h=>h.lbl===col)?.i;
+              if(hi!==undefined){const ca=XLSX.utils.encode_cell({r:b.row._row-1,c:hi});ws[ca]={v:val,t:'s'};}
             }
           });
-          res.data = cleaned;
         }
-
         const filled=res.ok&&res.data?bfn.filter(f=>res.data[f]&&res.data[f]!=='null'&&res.data[f]!==null).length:0;
         const result={company:b.company,status:filled>0?'ok':'none',data:res.data,fn:bfn,geo:res.geo};
         enrichResults[b.globalIdx]=result;
-        done++;
-        updateProgress();
-        appendLiveRow(result);
-        saveSession();
+        done++;updateProgress();appendLiveRow(result);
       });
     }
     updateWorker(wi,null,true);
@@ -1208,28 +826,18 @@ async function startEnrich(){
   const numWorkers=Math.min(speed,batches.length);
   await Promise.all(Array.from({length:numWorkers},(_,i)=>worker(i)));
 
-  clearInterval(timerInterval);
-  wakeLockOff();
-  saveSession();
-
+  clearInterval(timerInterval);wakeLockOff();
   finalWb=wbCopy;
   const okCount=enrichResults.filter(r=>r&&r.status==='ok').length;
-
-  if (!stopRequested) chime();
-
+  if(!stopRequested)chime();
   document.title=`✅ ${okCount}/${total} enrichis — AdminAI`;
   setTimeout(()=>{document.title='AdminAI';},30000);
-
-  processing = false;
+  processing=false;
   renderEnrich('done');
 }
 
-// ============================================================
-// EXPORTS
-// ============================================================
-function exportXls(){
-  if(finalWb) XLSX.writeFile(finalWb,xfile.name.replace(/\.[^.]+$/,'')+'_enrichi.xlsx');
-}
+// ── EXPORTS ──────────────────────────────────────────────────
+function exportXls(){if(finalWb)XLSX.writeFile(finalWb,xfile.name.replace(/\.[^.]+$/,'')+'_enrichi.xlsx');}
 function exportCsv(){
   if(!finalWb)return;
   const csv=XLSX.utils.sheet_to_csv(finalWb.Sheets[activeSheet]);
@@ -1237,28 +845,15 @@ function exportCsv(){
   const u=URL.createObjectURL(b),a=document.createElement('a');
   a.href=u;a.download=xfile.name.replace(/\.[^.]+$/,'')+'_enrichi.csv';a.click();
 }
-function exportProgress() {
-  const blob = new Blob([JSON.stringify({
-    file: xfile?.name || null,
-    activeSheet,
-    enrichResults,
-    elapsed,
-    exportedAt: new Date().toISOString()
-  }, null, 2)], {type:'application/json'});
-  const u = URL.createObjectURL(blob);
-  const a = document.createElement('a');
-  a.href = u;
-  a.download = 'adminai_progress.json';
-  a.click();
+function exportProgress(){
+  const blob=new Blob([JSON.stringify({file:xfile?.name,activeSheet,enrichResults,elapsed,exportedAt:new Date().toISOString()},null,2)],{type:'application/json'});
+  const u=URL.createObjectURL(blob),a=document.createElement('a');
+  a.href=u;a.download='adminai_progress.json';a.click();
 }
 
-// ============================================================
-// INIT
-// ============================================================
-(function init(){
-  renderEnrich('upload');
-  chatHistory = loadChat();
-})();
+// ── INIT ─────────────────────────────────────────────────────
+(function(){ renderEnrich('upload'); chatHistory=loadChat(); })();
 </script>
+
 </body>
 </html>
