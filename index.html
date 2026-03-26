@@ -437,16 +437,38 @@ function detectGeo(ctx,row){
 // ─── API ──────────────────────────────────────────────────────
 async function enrichOne(company,ctx,fields,row){
   const lbls=fields.map(f=>FIELDS.find(x=>x.id===f)?.label.replace(/^[^ ]+ /,'')).join(', ');
-  const ctxStr=Object.entries(ctx).filter(([,v])=>v).map(([k,v])=>`${k}: ${v}`).join(' | ');
+
+  // Build context string from known data (ville, secteur, etc.)
+  const ctxParts=[];
+  Object.entries({...ctx,...row}).forEach(([k,v])=>{
+    if(k==='_row'||!v||String(v).trim().length<2) return;
+    ctxParts.push(`${k}: ${v}`);
+  });
+  const ctxStr=[...new Set(ctxParts)].slice(0,8).join(' | ');
+
   const geo=detectGeo(ctx,row);
-  const geoBlock=geo?`\n⚠️ CONTRAINTE GÉO STRICTE: Cette entreprise est dans "${geo}". Retourne UNIQUEMENT les données de cette zone. Si tu trouves le même nom ailleurs, mets null.`:'';
-  const prompt=`Recherche sur internet pour cette entreprise.
-Entreprise: "${company}"
-${ctxStr?`Données connues: ${ctxStr}`:''}${geoBlock}
+
+  const prompt=`Tu es un assistant de recherche commerciale spécialisé dans les entreprises suisses.
+
+Entreprise à rechercher: "${company}"
+${ctxStr?`Informations connues: ${ctxStr}`:''}
+${geo?`Localisation: ${geo} (Suisse)`:'Pays: Suisse'}
+
+Fais une recherche web pour trouver les informations officielles de cette entreprise suisse.
+Cherche sur: leur site officiel, local.ch, zefix.ch, moneyhouse.ch, search.ch, linkedin.com.
+
 Champs à trouver: ${lbls}
-Réponds UNIQUEMENT avec un JSON valide, sans texte avant ou après, sans backticks.
+
+RÈGLES:
+- Retourne les vraies données trouvées, pas des exemples
+- Si une info est introuvable après recherche, mets null
+- Pour l'adresse: inclus rue, NPA, ville
+- Pour le téléphone: format suisse (+41 ou 0xx xxx xx xx)
+- Ne confonds pas avec une entreprise du même nom dans un autre pays
+
+Réponds UNIQUEMENT avec un JSON valide, sans texte avant ou après, sans backticks:
 {
-${fields.map(f=>`  "${f}": "valeur ou null"`).join(',\n')}
+${fields.map(f=>`  "${f}": "valeur trouvée ou null"`).join(',\n')}
 }`;
   const r=await fetch('https://api.anthropic.com/v1/messages',{
     method:'POST',headers:{'Content-Type':'application/json'},
