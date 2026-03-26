@@ -1,829 +1,94 @@
-<!DOCTYPE html>
-
-<html lang="fr">
-<head>
-<meta charset="UTF-8"/>
-<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover"/>
-<meta name="apple-mobile-web-app-capable" content="yes"/>
-<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent"/>
-<meta name="apple-mobile-web-app-title" content="AdminAI"/>
-<meta name="theme-color" content="#0f1117"/>
-<title>AdminAI</title>
-<script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
-<style>
-@import url('https://fonts.googleapis.com/css2?family=DM+Serif+Display&family=DM+Mono:wght@400;500&family=DM+Sans:wght@300;400;500&display=swap');
-*,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
-:root{
-  --bg:#0f1117;--sur:#171c27;--sur2:#1e2535;--bdr:#2a3347;
-  --acc:#f0a830;--acc2:#e07c1a;--txt:#e8eaf0;--txt2:#8892a4;--txt3:#5a6478;
-  --ok:#3dd68c;--bad:#e05555;--r:13px
-}
-html,body{height:100%;background:var(--bg);font-family:'DM Sans',sans-serif;color:var(--txt)}
-.app{display:flex;flex-direction:column;height:100dvh;max-width:1080px;margin:0 auto}
-.hdr{display:flex;align-items:center;justify-content:space-between;padding:12px 15px;border-bottom:1px solid var(--bdr);background:var(--sur);position:sticky;top:0;z-index:20;gap:8px;flex-wrap:wrap}
-.hdr-l{display:flex;align-items:center;gap:9px}
-.logo{width:31px;height:31px;background:var(--acc);border-radius:8px;display:flex;align-items:center;justify-content:center;font-family:'DM Serif Display';font-size:16px;color:#0f1117;font-weight:700;flex-shrink:0}
-.appname{font-family:'DM Serif Display';font-size:17px}
-.appsub{font-size:10px;color:var(--txt3);font-family:'DM Mono'}
-.tabs{display:flex;gap:3px;background:var(--sur2);border-radius:9px;padding:3px}
-.tab{padding:5px 11px;border-radius:7px;font-size:12px;border:none;cursor:pointer;background:transparent;color:var(--txt2);font-family:'DM Mono';transition:all .15s}
-.tab.on{background:var(--acc);color:#0f1117;font-weight:600}
-.tgl-w{display:flex;align-items:center;gap:5px;cursor:pointer}
-.tgl-lb{font-size:11px;color:var(--txt2);font-family:'DM Mono'}
-.tgl{width:35px;height:19px;border-radius:10px;background:var(--bdr);position:relative;border:none;cursor:pointer;transition:background .2s;flex-shrink:0}
-.tgl.on{background:var(--acc)}
-.tgl::after{content:'';position:absolute;top:2px;left:2px;width:15px;height:15px;border-radius:50%;background:#fff;transition:transform .2s}
-.tgl.on::after{transform:translateX(16px)}
-.panel{display:none;flex:1;flex-direction:column;overflow:hidden}
-.panel.active{display:flex}
-.msgs{flex:1;overflow-y:auto;padding:15px;display:flex;flex-direction:column;gap:12px}
-.msg{display:flex;flex-direction:column;gap:3px}
-.msg.u{align-items:flex-end}.msg.a{align-items:flex-start}
-.bub{max-width:82%;padding:10px 14px;border-radius:var(--r);line-height:1.65;font-size:14px;white-space:pre-wrap;word-break:break-word}
-.msg.u .bub{background:#1e2d4a;border-bottom-right-radius:4px}
-.msg.a .bub{background:#1a2030;border-bottom-left-radius:4px;border:1px solid var(--bdr)}
-.msg-meta{font-size:11px;color:var(--txt3);font-family:'DM Mono';padding:0 3px}
-.fchips{display:flex;flex-wrap:wrap;gap:5px;margin-bottom:6px}
-.fchip{padding:3px 9px;background:rgba(240,168,48,.12);border:1px solid rgba(240,168,48,.3);border-radius:20px;font-size:11px;color:var(--acc);font-family:'DM Mono'}
-.typing{display:flex;gap:5px;align-items:center;padding:12px 14px}
-.dot{width:6px;height:6px;border-radius:50%;background:var(--acc);animation:boun .8s infinite ease-in-out}
-.dot:nth-child(2){animation-delay:.15s}.dot:nth-child(3){animation-delay:.3s}
-@keyframes boun{0%,60%,100%{transform:translateY(0)}30%{transform:translateY(-6px)}}
-.welcome{flex:1;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:15px;padding:30px 15px;text-align:center}
-.welcome h2{font-family:'DM Serif Display';font-size:22px}
-.welcome p{color:var(--txt2);font-size:13px;max-width:300px;line-height:1.7}
-.wcaps{display:flex;gap:6px;flex-wrap:wrap;justify-content:center}
-.wcap{padding:5px 10px;border-radius:20px;background:var(--sur2);border:1px solid var(--bdr);font-size:11px;color:var(--txt2);font-family:'DM Mono'}
-.inpz{border-top:1px solid var(--bdr);background:var(--sur);padding:10px 13px;display:flex;flex-direction:column;gap:7px}
-.attfs{display:flex;gap:6px;flex-wrap:wrap}
-.attch{display:flex;align-items:center;gap:5px;padding:4px 8px;background:var(--sur2);border:1px solid var(--bdr);border-radius:7px;font-size:12px;color:var(--txt2)}
-.rmbtn{background:none;border:none;color:var(--txt3);cursor:pointer;font-size:13px;padding:0 2px}
-.inpr{display:flex;gap:6px;align-items:flex-end}
-.attb,.sndb{flex-shrink:0;border:none;cursor:pointer;border-radius:9px;display:flex;align-items:center;justify-content:center;font-size:16px;width:41px;height:41px;transition:all .15s}
-.attb{background:var(--sur2);border:1px solid var(--bdr);color:var(--txt2)}
-.attb:hover{border-color:var(--acc);color:var(--acc)}
-.sndb{background:var(--acc);color:#0f1117}
-.sndb:disabled{background:var(--bdr);color:var(--txt3);cursor:default}
-#chat-input{flex:1;background:var(--sur2);border:1px solid var(--bdr);color:var(--txt);border-radius:9px;padding:10px 12px;font-family:'DM Sans';font-size:14px;resize:none;outline:none;line-height:1.5;max-height:100px}
-#chat-input:focus{border-color:var(--acc)}
-#chat-input::placeholder{color:var(--txt3)}
-.hint{font-size:11px;color:var(--txt3);font-family:'DM Mono';text-align:center}
-.epane{flex:1;overflow-y:auto}
-.sec{padding:15px;border-bottom:1px solid var(--bdr)}
-.stitle{font-family:'DM Serif Display';font-size:16px;margin-bottom:7px}
-.sdesc{font-size:13px;color:var(--txt2);line-height:1.6;margin-bottom:9px}
-.dropz{border:1.5px dashed var(--bdr);border-radius:var(--r);padding:20px;display:flex;flex-direction:column;align-items:center;gap:7px;cursor:pointer;transition:all .15s;text-align:center}
-.dropz:hover{border-color:var(--acc);background:rgba(240,168,48,.05)}
-.dropz-ico{font-size:26px}
-.dropz-txt{font-size:13px;color:var(--txt2)}
-.dropz-sub{font-size:11px;color:var(--txt3);font-family:'DM Mono'}
-.sheets{display:flex;flex-wrap:wrap;gap:6px;margin-top:8px}
-.shbtn{padding:6px 12px;border-radius:8px;border:1px solid var(--bdr);background:var(--sur2);font-size:12px;color:var(--txt2);cursor:pointer;font-family:'DM Mono';transition:all .15s}
-.shbtn.on{background:rgba(240,168,48,.15);border-color:var(--acc);color:var(--acc)}
-.cgrid{display:grid;grid-template-columns:1fr 1fr;gap:6px;margin-top:8px}
-.crow{display:flex;align-items:center;gap:6px;background:var(--sur2);border:1px solid var(--bdr);border-radius:9px;padding:8px 10px}
-.clbl{font-size:12px;color:var(--txt2);flex:1}
-.clbl small{display:block;font-size:10px;color:var(--txt3);font-family:'DM Mono';margin-top:1px}
-select{background:var(--sur);border:1px solid var(--bdr);color:var(--txt2);border-radius:6px;padding:4px 6px;font-size:11px;font-family:'DM Mono';outline:none;cursor:pointer;max-width:140px;width:100%}
-select:focus{border-color:var(--acc)}
-option{background:var(--sur)}
-.fcs{display:flex;flex-wrap:wrap;gap:5px;margin-top:8px}
-.fc{padding:5px 11px;border-radius:20px;border:1px solid var(--bdr);background:var(--sur2);font-size:12px;color:var(--txt2);cursor:pointer;font-family:'DM Mono';transition:all .15s;user-select:none}
-.fc.on{background:rgba(240,168,48,.15);border-color:var(--acc);color:var(--acc)}
-.pvw{overflow-x:auto;border-radius:10px;border:1px solid var(--bdr);max-height:260px;overflow-y:auto;margin-top:8px}
-table{width:100%;border-collapse:collapse;font-size:12px}
-thead tr{background:var(--sur2);position:sticky;top:0}
-th{padding:7px 10px;text-align:left;color:var(--txt2);font-family:'DM Mono';font-size:10px;white-space:nowrap;border-bottom:1px solid var(--bdr)}
-td{padding:7px 10px;border-bottom:1px solid rgba(42,51,71,.5);color:var(--txt);white-space:nowrap;max-width:220px;overflow:hidden;text-overflow:ellipsis;vertical-align:top}
-tr:last-child td{border-bottom:none}
-.te{color:var(--txt3);font-style:italic;font-size:11px}
-.tf{color:var(--ok)}
-.tn{color:var(--acc);font-weight:500}
-.speed-box{background:var(--sur2);border:1px solid var(--bdr);border-radius:10px;padding:11px 13px;margin-bottom:11px}
-.speed-top{display:flex;justify-content:space-between;align-items:center;margin-bottom:7px}
-.speed-lbl{font-size:12px;color:var(--txt2);font-family:'DM Mono'}
-.speed-val{font-size:14px;font-weight:700;color:var(--acc);font-family:'DM Mono'}
-input[type=range]{width:100%;accent-color:var(--acc);cursor:pointer}
-.speed-row{display:flex;justify-content:space-between;font-size:10px;color:var(--txt3);font-family:'DM Mono';margin-top:3px}
-.speed-est{font-size:11px;color:var(--ok);margin-top:6px;font-family:'DM Mono'}
-.runbtn{padding:10px 20px;background:var(--acc);color:#0f1117;border:none;border-radius:10px;font-size:14px;font-weight:600;cursor:pointer;transition:all .15s;display:inline-flex;align-items:center;gap:7px}
-.runbtn:hover{background:var(--acc2)}
-.runbtn:disabled{background:var(--bdr);color:var(--txt3);cursor:default}
-.run-info{font-size:12px;color:var(--txt2);margin-top:8px}
-.wlbanner{display:flex;align-items:flex-start;gap:9px;padding:10px 12px;border-radius:10px;font-size:12px;line-height:1.5;background:rgba(61,214,140,.1);border:1px solid rgba(61,214,140,.25);color:var(--ok);margin-bottom:11px}
-.wlico{font-size:16px;flex-shrink:0;margin-top:1px}
-.wltxt b{display:block;font-weight:600;margin-bottom:1px;font-size:13px}
-.wltxt span{opacity:.85;font-size:11px}
-.scard{background:var(--sur2);border:1px solid var(--bdr);border-radius:12px;padding:13px;display:flex;flex-direction:column;gap:10px;margin-bottom:11px}
-.prow{display:flex;align-items:center;gap:9px}
-.pbar{flex:1;height:8px;background:var(--bdr);border-radius:4px;overflow:hidden}
-.pfill{height:100%;background:var(--acc);border-radius:4px;transition:width .35s}
-.ppct{font-size:12px;color:var(--txt);font-family:'DM Mono';font-weight:600;white-space:nowrap}
-.workers{display:flex;flex-direction:column;gap:4px}
-.wkr{display:flex;align-items:center;gap:7px;font-size:12px}
-.wkr-ico{font-size:11px;width:15px;text-align:center;flex-shrink:0}
-.wkr-nm{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
-.srow{display:flex;justify-content:space-between;align-items:center;gap:8px}
-.slbl{font-size:11px;color:var(--txt2);font-family:'DM Mono'}
-.sval{font-size:12px;color:var(--txt);font-family:'DM Mono';font-weight:500}
-.donebanner{background:rgba(61,214,140,.08);border:1px solid rgba(61,214,140,.2);border-radius:12px;padding:13px;display:flex;align-items:center;gap:11px;margin-bottom:11px}
-.doneico{font-size:28px}
-.donetxt b{font-family:'DM Serif Display';font-size:16px;color:var(--ok);display:block}
-.donetxt span{font-size:12px;color:var(--txt2)}
-.exbtns{display:flex;gap:6px;flex-wrap:wrap;margin-top:10px}
-.exbtn{padding:7px 12px;border-radius:7px;font-size:11px;font-family:'DM Mono';background:var(--sur2);border:1px solid var(--bdr);color:var(--txt2);cursor:pointer;transition:all .15s}
-.exbtn:hover{border-color:var(--ok);color:var(--ok)}
-.badge{display:inline-flex;align-items:center;padding:2px 7px;border-radius:20px;font-size:10px;font-family:'DM Mono'}
-.bok{background:rgba(61,214,140,.12);color:var(--ok);border:1px solid rgba(61,214,140,.3)}
-.bpart{background:rgba(240,168,48,.12);color:var(--acc);border:1px solid rgba(240,168,48,.3)}
-.bno{background:rgba(224,85,85,.1);color:var(--bad);border:1px solid rgba(224,85,85,.25)}
-.geo-tag{font-size:10px;color:var(--txt3);font-family:'DM Mono';background:var(--sur);border:1px solid var(--bdr);border-radius:4px;padding:1px 5px}
-.warn{padding:10px 12px;background:rgba(224,85,85,.08);border:1px solid rgba(224,85,85,.18);border-radius:10px;color:#ffb8b8;font-size:12px;line-height:1.5}
-::-webkit-scrollbar{width:3px}
-::-webkit-scrollbar-thumb{background:var(--bdr);border-radius:3px}
-</style>
-</head>
-<body>
-<div class="app">
-  <div class="hdr">
-    <div class="hdr-l">
-      <div class="logo">A</div>
-      <div><div class="appname">AdminAI</div><div class="appsub">Claude API · Excel Enrichment</div></div>
-    </div>
-    <div class="tabs">
-      <button class="tab on" onclick="switchTab('chat')">💬 Assistant</button>
-      <button class="tab" onclick="switchTab('enrich')">📊 Enrichir Excel</button>
-    </div>
-    <div class="tgl-w" onclick="toggleWebSearch()">
-      <span class="tgl-lb">Web</span>
-      <button class="tgl on" id="wsBtn"></button>
-    </div>
-  </div>
-
-  <div class="panel active" id="chatPanel">
-    <div class="msgs" id="msgList">
-      <div class="welcome" id="welcomeMsg">
-        <div style="font-size:40px">📋</div>
-        <h2>Assistant Administratif</h2>
-        <p>Analyse des documents, répond à tes questions et enrichit des fichiers Excel.</p>
-        <div class="wcaps">
-          <span class="wcap">📄 PDF</span><span class="wcap">📊 Excel</span>
-          <span class="wcap">📝 Word</span><span class="wcap">🔍 Web</span>
-        </div>
-      </div>
-    </div>
-    <div class="inpz">
-      <div class="attfs" id="chatAttached"></div>
-      <div class="inpr">
-        <button class="attb" onclick="document.getElementById('chatFileIn').click()">📎</button>
-        <textarea id="chat-input" rows="1" placeholder="Pose une question ou joins un fichier…"
-          oninput="this.style.height='auto';this.style.height=Math.min(this.scrollHeight,100)+'px'"
-          onkeydown="if(event.key==='Enter'&&!event.shiftKey){event.preventDefault();sendChat()}"></textarea>
-        <button class="sndb" id="sendBtn" onclick="sendChat()">➤</button>
-      </div>
-      <div class="hint">Entrée pour envoyer · Maj+Entrée nouvelle ligne</div>
-    </div>
-    <input type="file" id="chatFileIn" style="display:none" multiple
-      accept=".pdf,.xlsx,.xls,.csv,.docx,.txt,.png,.jpg,.jpeg"
-      onchange="addChatFiles(this.files)"/>
-  </div>
-
-  <div class="panel" id="enrichPanel">
-    <div class="epane" id="enrichContent"></div>
-  </div>
-</div>
-
-<input type="file" id="xlsFileIn" style="display:none" accept=".xlsx,.xls,.csv" onchange="loadXls(this.files[0])"/>
-
-<script>
-// ── CONFIG ──────────────────────────────────────────────────
-const API_URL = 'https://api.anthropic.com/v1/messages';
-const MODEL   = 'claude-sonnet-4-20250514';
-const CACHE_KEY   = 'adminai_enrich_cache_v3';
-const SESSION_KEY = 'adminai_session_v2';
-const CHAT_KEY    = 'adminai_chat_history_v1';
-const MAX_CHAT_TOKENS   = 1500;
-const MAX_ENRICH_TOKENS = 8000;  // plus grand = plus de résultats par batch
-const DEFAULT_BATCH_SIZE = 3;
-const DEFAULT_SPEED = 5;
-const MAX_RETRIES = 2;
-
-// ── STATE ────────────────────────────────────────────────────
-let wsOn = true, chatFiles = [], chatHistory = [];
-let wb = null, sheetNames = [], activeSheet = '';
-let hdrs = [], rows = [];
-let nameCol = '__', colMap = {website:'__',phone:'__',email:'__',address:'__'};
-let selFields = ['website','phone','email','address'];
-let speed = DEFAULT_SPEED, batchSize = DEFAULT_BATCH_SIZE;
-let elapsed = 0, timerInterval = null;
-let enrichResults = [], finalWb = null, xfile = null;
-let paused = false, stopRequested = false, processing = false;
-
-const FIELDS = [
-  {id:'website', label:'🌐 Site web',   kw:['site','web','url','internet','homepage','www']},
-  {id:'phone',   label:'📞 Téléphone',  kw:['tel','phone','téléphone','mobile','portable','gsm','fax']},
-  {id:'email',   label:'📧 Email',      kw:['email','mail','courriel','@']},
-  {id:'address', label:'📍 Adresse',    kw:['adresse','address','rue','street','chemin','avenue','bd','boulevard','route','localité','ville']},
-];
-
-// ── UTILS ────────────────────────────────────────────────────
-const empty  = v => v===null||v===undefined||String(v).trim()==='';
-const fmts   = s => s<60?`${s}s`:`${Math.floor(s/60)}m${String(s%60).padStart(2,'0')}s`;
-const ftime  = d => d.toLocaleTimeString('fr-CH',{hour:'2-digit',minute:'2-digit'});
-const ext    = n => n.split('.').pop().toLowerCase();
-const el     = id => document.getElementById(id);
-const ficon  = n => ({pdf:'📄',xlsx:'📊',xls:'📊',csv:'📊',docx:'📝',doc:'📝',png:'🖼',jpg:'🖼',jpeg:'🖼',txt:'📃'})[n.split('.').pop().toLowerCase()]||'📎';
-const sleep  = ms => new Promise(r=>setTimeout(r,ms));
-const norm   = s => String(s||'').toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g,'').replace(/[^\w\s]/g,' ').replace(/\s+/g,' ').trim();
-const cacheKey = (company,geo='') => `${norm(company)}|${norm(geo)}`;
-
-function getCache(){ try{return JSON.parse(localStorage.getItem(CACHE_KEY)||'{}');}catch{return{};} }
-function saveCache(c){ try{localStorage.setItem(CACHE_KEY,JSON.stringify(c));}catch{} }
-function saveChat(){ try{localStorage.setItem(CHAT_KEY,JSON.stringify(chatHistory));}catch{} }
-function loadChat(){ try{return JSON.parse(localStorage.getItem(CHAT_KEY)||'[]');}catch{return[];} }
-function scoreRow(row){ let s=0; Object.values(row).forEach(v=>{if(!empty(v))s++;}); return s; }
-function hasUsefulData(data,fields){ return fields.some(f=>!!data?.[f]); }
-
-async function withRetry(fn,retries=MAX_RETRIES,delay=1500){
-  let last;
-  for(let i=0;i<retries;i++){try{return await fn();}catch(e){last=e;await sleep(delay*(i+1));}}
-  throw last;
-}
-async function waitIfPaused(){ while(paused&&!stopRequested) await sleep(500); }
-
-// ── SANITIZERS ───────────────────────────────────────────────
-function cleanWebsite(v){
-  if(!v||v==='null') return null;
-  v=String(v).trim().toLowerCase();
-  // Remove quotes, backticks, extra spaces
-  v=v.replace(/['"` ]/g,'');
-  if(v.length<4) return null;
-  // Strip https/http for storage
-  v=v.replace(/^https?:\/\//,'').replace(/^www\./,'');
-  // Must look like a domain
-  if(!/\.[a-z]{2,}/.test(v)) return null;
-  return v.split('/')[0]; // just domain
-}
-function cleanEmail(v){
-  if(!v||v==='null') return null;
-  const m=String(v).match(/[A-Z0-9._%+\-]+@[A-Z0-9.\-]+\.[A-Z]{2,}/i);
-  return m?m[0].toLowerCase():null;
-}
-function cleanPhone(v){
-  if(!v||v==='null') return null;
-  let s=String(v).replace(/[^\d+]/g,'');
-  if(s.startsWith('0041')) s='+41'+s.slice(4);
-  else if(s.startsWith('41')&&!s.startsWith('+')) s='+41'+s.slice(2);
-  if(s.startsWith('+41')&&s.length>=11) return s;
-  if(s.startsWith('0')&&s.length>=9&&s.length<=10) return s;
-  // Accept other formats if reasonable length
-  if(s.length>=7&&s.length<=15) return String(v).trim();
-  return null;
-}
-function cleanAddress(v){
-  if(!v||v==='null') return null;
-  v=String(v).trim().replace(/\s+/g,' ');
-  return v.length>=8?v:null;
-}
-function sanitize(data){
-  if(!data) return null;
-  const out={};
-  if(data.website) out.website=cleanWebsite(data.website);
-  if(data.email)   out.email=cleanEmail(data.email);
-  if(data.phone)   out.phone=cleanPhone(data.phone);
-  if(data.address) out.address=cleanAddress(data.address);
-  return out;
-}
-
-// ── UI ───────────────────────────────────────────────────────
-function switchTab(tab){
-  document.querySelectorAll('.tab').forEach((t,i)=>t.classList.toggle('on',i===(tab==='chat'?0:1)));
-  el('chatPanel').classList.toggle('active',tab==='chat');
-  el('enrichPanel').classList.toggle('active',tab==='enrich');
-  el('wsBtn').parentElement.style.display=tab==='chat'?'flex':'none';
-  if(tab==='enrich') renderEnrich();
-}
-function toggleWebSearch(){ wsOn=!wsOn; el('wsBtn').classList.toggle('on',wsOn); }
-
-// ── WAKE LOCK + AUDIO ────────────────────────────────────────
-let _wl=null,_actx=null,_asrc=null;
-async function wakeLockOn(){
-  try{if('wakeLock' in navigator) _wl=await navigator.wakeLock.request('screen');}catch{}
-  try{
-    _actx=new(window.AudioContext||window.webkitAudioContext)();
-    const buf=_actx.createBuffer(1,_actx.sampleRate*3,_actx.sampleRate);
-    const ch=buf.getChannelData(0);
-    for(let i=0;i<ch.length;i++) ch[i]=(Math.random()*2-1)*0.0005;
-    _asrc=_actx.createBufferSource();
-    _asrc.buffer=buf;_asrc.loop=true;
-    _asrc.connect(_actx.destination);_asrc.start(0);
-  }catch{}
-}
-function wakeLockOff(){
-  try{_wl?.release();_wl=null;}catch{}
-  try{_asrc?.stop();_asrc=null;}catch{}
-  try{_actx?.close();_actx=null;}catch{}
-}
-function chime(){
-  try{
-    const c=new(window.AudioContext||window.webkitAudioContext)();
-    [523,659,784,1047].forEach((f,i)=>{
-      const o=c.createOscillator(),g=c.createGain();
-      o.connect(g);g.connect(c.destination);o.type='sine';o.frequency.value=f;
-      const t=c.currentTime+i*0.16;
-      g.gain.setValueAtTime(0,t);g.gain.linearRampToValueAtTime(0.28,t+0.02);g.gain.exponentialRampToValueAtTime(0.001,t+0.5);
-      o.start(t);o.stop(t+0.5);
-    });
-  }catch{}
-}
-
-// ── FILE EXTRACT ─────────────────────────────────────────────
-async function extractFile(file){
-  const e=ext(file.name);
-  if(e==='pdf') return new Promise((res,rej)=>{const r=new FileReader();r.onload=()=>res({type:'pdf',b64:r.result.split(',')[1],name:file.name});r.onerror=rej;r.readAsDataURL(file);});
-  if(['png','jpg','jpeg','webp'].includes(e)) return new Promise((res,rej)=>{const r=new FileReader();r.onload=()=>res({type:'img',b64:r.result.split(',')[1],mime:file.type,name:file.name});r.onerror=rej;r.readAsDataURL(file);});
-  if(['xlsx','xls','csv'].includes(e)) return new Promise((res,rej)=>{const r=new FileReader();r.onload=ev=>{try{const w=XLSX.read(ev.target.result,{type:'array'});let t='';w.SheetNames.forEach(s=>{t+=`=== ${s} ===\n${XLSX.utils.sheet_to_csv(w.Sheets[s])}\n\n`;});res({type:'txt',text:t.trim(),name:file.name});}catch(err){rej(err);}};r.onerror=rej;r.readAsArrayBuffer(file);});
-  return new Promise((res,rej)=>{const r=new FileReader();r.onload=()=>res({type:'txt',text:r.result,name:file.name});r.onerror=rej;r.readAsText(file);});
-}
-
-// ── CHAT ─────────────────────────────────────────────────────
-function addChatFiles(files){Array.from(files).forEach(async f=>{const ex=await extractFile(f).catch(()=>({type:'txt',text:'[Erreur]',name:f.name}));chatFiles.push({file:f,ex});renderAttached();});}
-function renderAttached(){el('chatAttached').innerHTML=chatFiles.map((f,i)=>`<div class="attch">${ficon(f.file.name)} ${f.file.name} <button class="rmbtn" onclick="removeChatFile(${i})">×</button></div>`).join('');}
-function removeChatFile(i){chatFiles.splice(i,1);renderAttached();}
-function appendMsg(role,text,files){
-  el('welcomeMsg')?.remove();
-  const div=document.createElement('div');div.className='msg '+(role==='user'?'u':'a');
-  let html='';
-  if(files?.length) html+=`<div class="fchips" style="justify-content:${role==='user'?'flex-end':'flex-start'}">${files.map(f=>`<span class="fchip">${ficon(f)} ${f}</span>`).join('')}</div>`;
-  if(text) html+=`<div class="bub">${text.replace(/</g,'&lt;')}</div>`;
-  html+=`<div class="msg-meta">${ftime(new Date())}</div>`;
-  div.innerHTML=html;el('msgList').appendChild(div);el('msgList').scrollTop=el('msgList').scrollHeight;
-}
-function showTyping(){const d=document.createElement('div');d.className='msg a';d.id='typing';d.innerHTML='<div class="bub typing"><div class="dot"></div><div class="dot"></div><div class="dot"></div></div>';el('msgList').appendChild(d);el('msgList').scrollTop=el('msgList').scrollHeight;}
-function removeTyping(){el('typing')?.remove();}
-function buildParts(text,files){const p=[];files.forEach(f=>{if(f.type==='pdf'){p.push({type:'document',source:{type:'base64',media_type:'application/pdf',data:f.b64}});p.push({type:'text',text:`[PDF: ${f.name}]`});}else if(f.type==='img'){p.push({type:'image',source:{type:'base64',media_type:f.mime,data:f.b64}});p.push({type:'text',text:`[Image: ${f.name}]`});}else if(f.type==='txt'){p.push({type:'text',text:`[${f.name}]\n\`\`\`\n${f.text}\n\`\`\``});}});if(text.trim())p.push({type:'text',text});return p;}
-
-async function callAPI(body){
-  const r=await fetch(API_URL,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(body)});
-  if(!r.ok){const e=await r.text();throw new Error(`API ${r.status}: ${e}`);}
-  return await r.json();
-}
-
-async function sendChat(){
-  const inp=el('chat-input');const text=inp.value.trim();const uf=[...chatFiles];
-  if(!text&&!uf.length)return;
-  inp.value='';inp.style.height='auto';chatFiles=[];renderAttached();el('sendBtn').disabled=true;
-  appendMsg('user',text,uf.map(f=>f.file.name));
-  const parts=buildParts(text,uf.map(f=>f.ex));
-  chatHistory.push({role:'user',content:parts});saveChat();
-  showTyping();
-  try{
-    const body={model:MODEL,max_tokens:MAX_CHAT_TOKENS,system:'Tu es un assistant administratif expert. Réponds en français, de façon claire et concise.',messages:chatHistory};
-    if(wsOn) body.tools=[{type:'web_search_20250305',name:'web_search'}];
-    const d=await withRetry(()=>callAPI(body),2,1200);
-    const reply=(d.content||[]).filter(b=>b.type==='text').map(b=>b.text).join('\n')||'Pas de réponse.';
-    chatHistory.push({role:'assistant',content:reply});saveChat();
-    removeTyping();appendMsg('assistant',reply);
-  }catch(e){removeTyping();appendMsg('assistant','Erreur: '+e.message);}
-  el('sendBtn').disabled=false;
-}
-
-// ── EXCEL ────────────────────────────────────────────────────
-function loadXls(file){
-  if(!file)return;xfile=file;
-  const r=new FileReader();
-  r.onload=ev=>{
-    try{
-      wb=XLSX.read(ev.target.result,{type:'array',cellDates:true});
-      sheetNames=wb.SheetNames;
-      const pref=sheetNames.find(s=>/data|base|client|gama|liste|list/i.test(s))||sheetNames[0];
-      activeSheet=pref;enrichResults=[];finalWb=null;
-      parseSheet();renderEnrich('config');
-    }catch(e){alert('Erreur: '+e.message);}
-  };
-  r.readAsArrayBuffer(file);
-}
-function parseSheet(){
-  const ws=wb.Sheets[activeSheet];if(!ws){hdrs=[];rows=[];return;}
-  const all=XLSX.utils.sheet_to_json(ws,{header:1,defval:'',raw:false});
-  let hi=0;for(let i=0;i<Math.min(all.length,10);i++){if(all[i].filter(c=>String(c).trim()).length>=2){hi=i;break;}}
-  hdrs=all[hi].map((h,i)=>({i,lbl:String(h).trim()||`Col${i+1}`,raw:String(h).trim()}));
-  rows=all.slice(hi+1).filter(r=>r.some(c=>String(c).trim())).map((r,ri)=>{const o={_row:hi+1+ri+1};hdrs.forEach((h,i)=>{o[h.lbl]=r[i]!==undefined?String(r[i]).trim():'';});return o;});
-  const nameKw=['nom','name','entreprise','company','client','raison','société','societe'];
-  nameCol=hdrs.find(h=>nameKw.some(k=>h.raw.toLowerCase().includes(k)))?.lbl||hdrs[0]?.lbl||'__';
-  FIELDS.forEach(f=>{const m=hdrs.find(h=>f.kw.some(k=>h.raw.toLowerCase().includes(k)));colMap[f.id]=m?m.lbl:'__';});
-}
-function rowsToEnrich(){
-  return rows.filter(row=>{
-    if(nameCol==='__'||!row[nameCol]||!String(row[nameCol]).trim())return false;
-    return selFields.some(fid=>{const c=colMap[fid];return c&&c!=='__'&&empty(row[c]);});
-  }).sort((a,b)=>scoreRow(b)-scoreRow(a));
-}
-
-// ── GEO ──────────────────────────────────────────────────────
-function detectGeo(ctx,row){
-  const gkw=['ville','city','pays','country','canton','npa','zip','code postal','localité','localite','adresse','address','siège','siege','hq','headquarter','location','région','region'];
-  const vals=[];
-  Object.entries({...ctx,...row}).forEach(([k,v])=>{if(!v||k==='_row')return;if(gkw.some(g=>k.toLowerCase().includes(g)))vals.push(String(v).trim());});
-  return[...new Set(vals)].filter(v=>v.length>1).join(', ')||null;
-}
-
-// ── ENRICH CORE — 1 entreprise par appel ─────────────────────
 async function enrichBatch(batch, fields){
-  // Process each company individually for maximum reliability
-  const results = await Promise.all(batch.map(b => enrichOne(b, fields)));
-  return results;
+  // batchSize recommandé = 1
+  const item = batch[0];
+  const company = item.company;
+  const geo = detectGeo(item.ctx, item.row) || 'Switzerland';
+
+  const prompt = `
+You are a precise Swiss business contact researcher.
+
+Your task:
+Find official business contact information for ONE company in Switzerland.
+
+COMPANY:
+"${company}"
+
+KNOWN CONTEXT:
+${JSON.stringify(item.ctx || {}, null, 2)}
+
+GEOGRAPHIC HINT:
+${geo}
+
+FIELDS TO FIND:
+${fields.join(', ')}
+
+STRICT RULES:
+- Search ONLY for this company
+- Prioritize Switzerland
+- Prefer official sources first:
+  1. official website
+  2. local.ch
+  3. search.ch
+  4. moneyhouse.ch
+  5. Google business-like listings / trusted directories
+- Never invent data
+- If unsure, return null
+- If multiple companies have similar names, ONLY keep the one matching the Swiss context
+- website = domain only (example.ch)
+- email = lowercase
+- phone = best official business number
+- address = full postal address if found
+- Add a confidence level for each field: high / medium / low
+
+Return ONLY valid JSON:
+{
+  "website": null,
+  "website_confidence": "low",
+  "email": null,
+  "email_confidence": "low",
+  "phone": null,
+  "phone_confidence": "low",
+  "address": null,
+  "address_confidence": "low"
 }
+`;
 
-async function enrichOne(b, fields){
-  const geo = detectGeo(b.ctx, b.row);
-
-  // Build context string
-  const ctxVals = Object.entries({...b.ctx, ...b.row})
-    .filter(([k,v]) => k !== '_row' && !empty(v) && String(v).trim().length > 1)
-    .map(([k,v]) => `${k}: ${v}`)
-    .slice(0, 8)
-    .join('\n');
-
-  const prompt = `Search the web for contact information about this Swiss company.
-
-Company: "${b.company}"
-${ctxVals ? `Known info:\n${ctxVals}` : ''}
-${geo ? `Location: ${geo}` : 'Country: Switzerland'}
-
-Search on: local.ch, search.ch, the company official website, moneyhouse.ch
-
-Return ONLY a JSON object with these fields: ${fields.join(', ')}
-
-Rules:
-- Use real data found on the web only
-- null if not found
-- website: just the domain (e.g. example.ch)
-- phone: Swiss format (+41 xx xxx xx xx)
-- address: street + NPA + city
-- email: professional email
-
-JSON only, no explanation:
-{${fields.map(f=>`"${f}":null`).join(',')}}`;
-
-  const d = await callAPI({
+  const body = {
     model: MODEL,
-    max_tokens: 1000,
-    tools: [{type:'web_search_20250305', name:'web_search'}],
-    messages: [{role:'user', content:prompt}]
-  });
+    max_tokens: 1200,
+    tools: [{ type: 'web_search_20250305', name: 'web_search' }],
+    messages: [{ role: 'user', content: prompt }]
+  };
 
-  const raw = (d.content||[]).filter(b=>b.type==='text').map(b=>b.text).join('');
+  const d = await callAPI(body);
+  const raw = (d.content || [])
+    .filter(b => b.type === 'text')
+    .map(b => b.text)
+    .join('');
 
-  try{
-    const s=raw.indexOf('{'), e=raw.lastIndexOf('}');
-    if(s>=0&&e>s){
-      const parsed = JSON.parse(raw.slice(s,e+1));
-      return {ok:true, data:sanitize(parsed), geo};
+  try {
+    const start = raw.indexOf('{');
+    const end = raw.lastIndexOf('}');
+    if(start >= 0 && end > start){
+      const obj = JSON.parse(raw.slice(start, end + 1));
+      return [{
+        ok: true,
+        data: sanitize(obj || {}),
+        confidence: {
+          website: obj.website_confidence || 'low',
+          email: obj.email_confidence || 'low',
+          phone: obj.phone_confidence || 'low',
+          address: obj.address_confidence || 'low'
+        },
+        geo
+      }];
     }
-  }catch{}
-  return {ok:false, data:null, geo};
+  } catch (e) {}
+
+  return [{
+    ok: false,
+    data: null,
+    confidence: {},
+    geo
+  }];
 }
-
-
-
-// ── RENDER ENRICH ────────────────────────────────────────────
-function renderEnrich(step){
-  const c=el('enrichContent');
-  if(!step){ if(!wb) step='upload'; else if(enrichResults.length>0&&finalWb) step='done'; else step='config'; }
-
-  if(step==='upload'){
-    c.innerHTML=`
-    <div class="sec">
-      <div class="stitle">Enrichir un fichier Excel</div>
-      <div class="sdesc">Importe ton fichier. AdminAI cherche automatiquement les informations sur internet pour chaque entreprise.</div>
-      <div class="dropz" onclick="el('xlsFileIn').click()">
-        <div class="dropz-ico">📊</div>
-        <div class="dropz-txt">Appuie pour choisir ton fichier Excel</div>
-        <div class="dropz-sub">.xlsx · .xls · .csv</div>
-      </div>
-    </div>`;
-    return;
-  }
-
-  if(step==='config'){
-    const toEnrich=rowsToEnrich();
-    const estSecs=Math.ceil(toEnrich.length/Math.max(1,speed)*batchSize)*35;
-    c.innerHTML=`
-    <div class="sec">
-      <div style="display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:9px;gap:10px;flex-wrap:wrap">
-        <div>
-          <div class="stitle">📊 ${xfile?.name}</div>
-          <div style="font-size:12px;color:var(--txt2);margin-top:2px">${rows.length} lignes · ${hdrs.length} colonnes</div>
-        </div>
-        <div style="display:flex;gap:6px;flex-wrap:wrap">
-          <button onclick="wb=null;renderEnrich('upload')" class="exbtn">↺ Changer</button>
-          <button onclick="saveCache({});alert('Cache vidé ✓')" class="exbtn">🧹 Cache</button>
-        </div>
-      </div>
-      <div class="sdesc" style="margin-bottom:5px">Onglets :</div>
-      <div class="sheets">${sheetNames.map(s=>`<button class="shbtn ${s===activeSheet?'on':''}" onclick="activeSheet='${s}';parseSheet();renderEnrich('config')">${s}</button>`).join('')}</div>
-    </div>
-    <div class="sec">
-      <div class="stitle">Colonnes</div>
-      <div style="margin-bottom:9px">
-        <div style="font-size:11px;color:var(--txt2);font-family:'DM Mono';margin-bottom:5px">Identifiant — Nom / Entreprise</div>
-        <select style="width:100%;max-width:100%" onchange="nameCol=this.value">
-          <option value="__">— Choisir —</option>
-          ${hdrs.map(h=>`<option value="${h.lbl}" ${nameCol===h.lbl?'selected':''}>${h.lbl}</option>`).join('')}
-        </select>
-      </div>
-      <div class="cgrid">
-        ${FIELDS.map(f=>`
-        <div class="crow">
-          <div class="clbl">${f.label}<small>→ colonne Excel</small></div>
-          <select onchange="colMap['${f.id}']=this.value">
-            <option value="__">— Ignorer —</option>
-            ${hdrs.map(h=>`<option value="${h.lbl}" ${colMap[f.id]===h.lbl?'selected':''}>${h.lbl}</option>`).join('')}
-          </select>
-        </div>`).join('')}
-      </div>
-    </div>
-    <div class="sec">
-      <div class="stitle">Champs à compléter</div>
-      <div class="fcs">
-        ${FIELDS.map(f=>{
-          const col=colMap[f.id],ok=col&&col!=='__';
-          const n=ok?rows.filter(r=>nameCol!=='__'&&r[nameCol]&&empty(r[col])).length:0;
-          return `<div class="fc ${selFields.includes(f.id)?'on':''}" onclick="toggleSelField('${f.id}')" style="opacity:${ok?1:.35};cursor:${ok?'pointer':'default'}">${f.label}${ok&&n>0?`<span style="margin-left:4px;font-size:10px;opacity:.7">${n} vides</span>`:''}</div>`;
-        }).join('')}
-      </div>
-    </div>
-    <div class="sec">
-      <div class="stitle">Aperçu</div>
-      <div class="pvw"><table>
-        <thead><tr>
-          ${nameCol!=='__'?`<th style="color:var(--acc)">📛 ${nameCol}</th>`:''}
-          ${selFields.filter(f=>colMap[f]&&colMap[f]!=='__').map(f=>`<th>${FIELDS.find(x=>x.id===f)?.label}</th>`).join('')}
-        </tr></thead>
-        <tbody>
-          ${rows.slice(0,10).map(row=>`<tr>
-            ${nameCol!=='__'?`<td class="tn">${row[nameCol]||'<span class="te">—</span>'}</td>`:''}
-            ${selFields.filter(f=>colMap[f]&&colMap[f]!=='__').map(f=>{const v=row[colMap[f]];return`<td>${!empty(v)?`<span class="tf">${v}</span>`:'<span class="te">vide</span>'}</td>`;}).join('')}
-          </tr>`).join('')}
-        </tbody>
-      </table></div>
-      ${rows.length>10?`<div style="font-size:11px;color:var(--txt3);margin-top:5px;font-family:'DM Mono'">… et ${rows.length-10} autres lignes</div>`:''}
-    </div>
-    <div class="sec" style="border-bottom:none">
-      <div class="speed-box">
-        <div class="speed-top"><span class="speed-lbl">⚡ Lots en parallèle</span><span class="speed-val" id="speedVal">${speed}×</span></div>
-        <input type="range" min="1" max="8" value="${speed}" oninput="speed=Number(this.value);el('speedVal').textContent=speed+'×';el('speedEst').textContent=rowsToEnrich().length>0?'⏱ ~'+fmts(Math.ceil(rowsToEnrich().length/Math.max(1,speed)*batchSize)*35)+' estimé':''">
-        <div class="speed-row"><span>1× lent</span><span>5× recommandé</span><span>8× max</span></div>
-        <div class="speed-est" id="speedEst">${toEnrich.length>0?`⏱ ~${fmts(estSecs)} estimé pour ${toEnrich.length} lignes`:''}</div>
-      </div>
-      <button class="runbtn" ${!toEnrich.length||nameCol==='__'||!selFields.length?'disabled':''} onclick="startEnrich()">
-        🔍 Enrichir ${toEnrich.length} ligne${toEnrich.length!==1?'s':''}
-      </button>
-      <div class="run-info">${toEnrich.length===0?'✓ Tout est déjà rempli':`${toEnrich.length} ligne(s) à compléter`}</div>
-    </div>`;
-    return;
-  }
-
-  if(step==='done'){
-    const ok=enrichResults.filter(r=>r&&r.status==='ok').length;
-    c.innerHTML=`
-    <div class="sec">
-      <div class="donebanner">
-        <div class="doneico">🎉</div>
-        <div class="donetxt">
-          <b>Enrichissement terminé !</b>
-          <span>${ok}/${enrichResults.length} lignes enrichies · Durée : ${fmts(elapsed)}</span>
-        </div>
-      </div>
-      <div class="exbtns">
-        <button class="exbtn" onclick="exportXls()">⬇️ Excel enrichi</button>
-        <button class="exbtn" onclick="exportCsv()">⬇️ CSV</button>
-        <button class="exbtn" onclick="exportProgress()">💾 JSON progression</button>
-        <button class="exbtn" onclick="enrichResults=[];finalWb=null;renderEnrich('config')">↺ Recommencer</button>
-      </div>
-    </div>
-    <div class="sec" style="border-bottom:none">
-      <div class="pvw"><table>
-        <thead><tr>
-          <th>Entreprise</th>
-          ${selFields.map(f=>`<th>${FIELDS.find(x=>x.id===f)?.label}</th>`).join('')}
-          <th>Statut</th>
-        </tr></thead>
-        <tbody>
-          ${enrichResults.map(r=>{
-            const filled=r.data?r.fn.filter(f=>r.data[f]&&r.data[f]!=='null').length:0;
-            const cls=filled===r.fn.length?'bok':filled>0?'bpart':'bno';
-            const lbl=filled===r.fn.length?'Complet':filled>0?`${filled}/${r.fn.length}`:'—';
-            return`<tr>
-              <td class="tn">${r.company}</td>
-              ${selFields.map(f=>{const v=r.data?.[f],needed=r.fn.includes(f);return`<td>${!needed?'<span class="tf" style="opacity:.4">✓</span>':v&&v!=='null'?`<span class="tf">${v}</span>`:'<span class="te">—</span>'}</td>`;}).join('')}
-              <td><span class="badge ${cls}">${lbl}</span></td>
-            </tr>`;
-          }).join('')}
-        </tbody>
-      </table></div>
-    </div>`;
-  }
-}
-
-function toggleSelField(id){if(selFields.includes(id)) selFields=selFields.filter(x=>x!==id);else selFields.push(id);renderEnrich('config');}
-function togglePause(){paused=!paused;const b=el('pauseBtn');if(b)b.textContent=paused?'▶️ Reprendre':'⏸ Pause';}
-function requestStop(){stopRequested=true;}
-
-// ── RUN ENRICH ───────────────────────────────────────────────
-async function startEnrich(){
-  if(processing)return;
-  processing=true;paused=false;stopRequested=false;
-
-  const toEnrich=rowsToEnrich();
-  if(!toEnrich.length){processing=false;return;}
-  const total=toEnrich.length;
-
-  enrichResults=new Array(total).fill(null);finalWb=null;
-
-  const c=el('enrichContent');
-  c.innerHTML=`
-  <div class="sec" id="runSec">
-    <div class="wlbanner">
-      <div class="wlico">🔆</div>
-      <div class="wltxt">
-        <b>Protection veille active · ${speed} lots en parallèle · ${batchSize} entreprises/lot</b>
-        <span>Boucle audio + Wake Lock actifs. Un son te préviendra à la fin.</span>
-      </div>
-    </div>
-    <div class="exbtns" style="margin-bottom:10px">
-      <button class="exbtn" id="pauseBtn" onclick="togglePause()">⏸ Pause</button>
-      <button class="exbtn" onclick="requestStop()">⛔ Stop</button>
-      <button class="exbtn" onclick="exportProgress()">💾 Export</button>
-    </div>
-    <div class="scard">
-      <div class="prow">
-        <div class="pbar"><div class="pfill" id="pfill" style="width:0%"></div></div>
-        <div class="ppct" id="ppct">0/${total}</div>
-      </div>
-      <div>
-        <div style="font-size:11px;color:var(--txt2);font-family:'DM Mono';margin-bottom:5px">${speed} lots actifs :</div>
-        <div class="workers" id="workers">
-          ${Array.from({length:speed},(_,i)=>`<div class="wkr" id="wkr${i}"><span class="wkr-ico">⏸</span><span class="wkr-nm" style="color:var(--txt3)">En attente…</span></div>`).join('')}
-        </div>
-      </div>
-      <div class="srow">
-        <span class="slbl">Durée</span>
-        <span class="sval" id="durVal">0s</span>
-        <span style="font-size:10px;color:var(--txt3);font-family:'DM Mono'" id="etaVal"></span>
-      </div>
-      <div class="srow">
-        <span class="slbl">Enrichies</span>
-        <span class="sval" style="color:var(--ok)" id="okVal">0 ✓</span>
-      </div>
-    </div>
-    <div class="pvw" id="liveResults" style="display:none"><table>
-      <thead><tr><th>Entreprise</th>${selFields.map(f=>`<th>${FIELDS.find(x=>x.id===f)?.label}</th>`).join('')}<th>OK</th></tr></thead>
-      <tbody id="liveBody"></tbody>
-    </table></div>
-  </div>`;
-
-  await wakeLockOn();
-  elapsed=0;
-  timerInterval=setInterval(()=>{elapsed++;const dv=el('durVal');if(dv)dv.textContent=fmts(elapsed);},1000);
-  const origTitle=document.title;
-  document.title=`⏳ 0/${total} — AdminAI`;
-
-  const wbCopy=XLSX.read(XLSX.write(wb,{type:'array',bookType:'xlsx'}),{type:'array'});
-  const ws=wbCopy.Sheets[activeSheet];
-
-  let done=0, batchIdx=0;
-
-  // Build batches
-  const batches=[];
-  for(let i=0;i<total;i+=batchSize){
-    batches.push(toEnrich.slice(i,i+batchSize).map((row,j)=>{
-      const ctx={};
-      FIELDS.forEach(f=>{const c=colMap[f.id];if(c&&c!=='__'&&!empty(row[c]))ctx[f.label.replace(/^[^ ]+ /,'')]=row[c];});
-      Object.entries(row).forEach(([k,v])=>{if(k!=='_row'&&!empty(v)&&!Object.values(ctx).includes(v))ctx[k]=v;});
-      const fn=selFields.filter(fid=>{const c=colMap[fid];return c&&c!=='__'&&empty(row[c]);});
-      return{company:String(row[nameCol]).trim(),ctx,row,fn,globalIdx:i+j};
-    }));
-  }
-
-  const updateWorker=(wi,text,doneState)=>{
-    const w=el(`wkr${wi}`);if(!w)return;
-    if(doneState){w.innerHTML=`<span class="wkr-ico">✅</span><span class="wkr-nm" style="color:var(--ok)">Terminé</span>`;}
-    else if(text){w.innerHTML=`<span class="wkr-ico">⚡</span><span class="wkr-nm" style="color:var(--acc)">${text}</span>`;}
-  };
-  const updateProgress=()=>{
-    const pf=el('pfill'),pp=el('ppct'),ok=el('okVal'),eta=el('etaVal');
-    if(pf)pf.style.width=(done/total*100)+'%';
-    if(pp)pp.textContent=`${done}/${total}`;
-    const okCount=enrichResults.filter(r=>r&&r.status==='ok').length;
-    if(ok)ok.textContent=okCount+' ✓';
-    if(eta&&done>0&&done<total)eta.textContent=`~${fmts(Math.round(elapsed/done*(total-done)))} restant`;
-    document.title=`⏳ ${done}/${total} — AdminAI`;
-  };
-  const appendLiveRow=(r)=>{
-    const tb=el('liveBody');if(!tb)return;
-    const lr=el('liveResults');if(lr)lr.style.display='';
-    const tr=document.createElement('tr');
-    tr.innerHTML=`<td class="tn">${r.company}</td>${selFields.map(f=>{const v=r.data?.[f];return`<td>${v&&v!=='null'?`<span class="tf">${v}</span>`:'<span class="te">—</span>'}</td>`;}).join('')}<td><span class="badge ${r.status==='ok'?'bok':'bno'}">${r.status==='ok'?'✓':'—'}</span></td>`;
-    tb.appendChild(tr);
-  };
-
-  const cache=getCache();
-
-  const worker=async(wi)=>{
-    while(true){
-      await waitIfPaused();
-      if(stopRequested)break;
-      const bi=batchIdx++;
-      if(bi>=batches.length)break;
-
-      const batch=batches[bi];
-      const names=batch.map(b=>b.company).join(', ');
-      updateWorker(wi,names.substring(0,55)+'…',false);
-
-      // Check cache
-      const cachedResults=new Array(batch.length).fill(null);
-      const needLookup=[];
-      batch.forEach((b,j)=>{
-        const geo=detectGeo(b.ctx,b.row);
-        const key=cacheKey(b.company,geo||'');
-        if(cache[key]) cachedResults[j]={ok:true,data:cache[key],geo};
-        else needLookup.push({b,j});
-      });
-
-      let fetched=[];
-      if(needLookup.length){
-        try{
-          fetched=await withRetry(()=>enrichBatch(needLookup.map(x=>x.b),selFields),MAX_RETRIES,1800);
-        }catch{
-          fetched=needLookup.map(()=>({ok:false,data:null,geo:null}));
-        }
-      }
-
-      let fi=0;
-      const finalResults=batch.map((b,j)=>{
-        if(cachedResults[j])return cachedResults[j];
-        const res=fetched[fi++]||{ok:false,data:null,geo:null};
-        const geo=detectGeo(b.ctx,b.row);
-        const key=cacheKey(b.company,geo||'');
-        if(res.ok&&res.data&&hasUsefulData(res.data,b.fn)) cache[key]=res.data;
-        return{...res,geo};
-      });
-      saveCache(cache);
-
-      finalResults.forEach((res,j)=>{
-        const b=batch[j];
-        const bfn=b.fn;
-        if(res.ok&&res.data){
-          bfn.forEach(fid=>{
-            const col=colMap[fid],val=res.data[fid];
-            if(col&&col!=='__'&&val&&val!=='null'&&val!==null){
-              const hi=hdrs.find(h=>h.lbl===col)?.i;
-              if(hi!==undefined){const ca=XLSX.utils.encode_cell({r:b.row._row-1,c:hi});ws[ca]={v:val,t:'s'};}
-            }
-          });
-        }
-        const filled=res.ok&&res.data?bfn.filter(f=>res.data[f]&&res.data[f]!=='null'&&res.data[f]!==null).length:0;
-        const result={company:b.company,status:filled>0?'ok':'none',data:res.data,fn:bfn,geo:res.geo};
-        enrichResults[b.globalIdx]=result;
-        done++;updateProgress();appendLiveRow(result);
-      });
-    }
-    updateWorker(wi,null,true);
-  };
-
-  const numWorkers=Math.min(speed,batches.length);
-  await Promise.all(Array.from({length:numWorkers},(_,i)=>worker(i)));
-
-  clearInterval(timerInterval);wakeLockOff();
-  finalWb=wbCopy;
-  const okCount=enrichResults.filter(r=>r&&r.status==='ok').length;
-  if(!stopRequested)chime();
-  document.title=`✅ ${okCount}/${total} enrichis — AdminAI`;
-  setTimeout(()=>{document.title='AdminAI';},30000);
-  processing=false;
-  renderEnrich('done');
-}
-
-// ── EXPORTS ──────────────────────────────────────────────────
-function exportXls(){if(finalWb)XLSX.writeFile(finalWb,xfile.name.replace(/\.[^.]+$/,'')+'_enrichi.xlsx');}
-function exportCsv(){
-  if(!finalWb)return;
-  const csv=XLSX.utils.sheet_to_csv(finalWb.Sheets[activeSheet]);
-  const b=new Blob(['\uFEFF'+csv],{type:'text/csv;charset=utf-8'});
-  const u=URL.createObjectURL(b),a=document.createElement('a');
-  a.href=u;a.download=xfile.name.replace(/\.[^.]+$/,'')+'_enrichi.csv';a.click();
-}
-function exportProgress(){
-  const blob=new Blob([JSON.stringify({file:xfile?.name,activeSheet,enrichResults,elapsed,exportedAt:new Date().toISOString()},null,2)],{type:'application/json'});
-  const u=URL.createObjectURL(blob),a=document.createElement('a');
-  a.href=u;a.download='adminai_progress.json';a.click();
-}
-
-// ── INIT ─────────────────────────────────────────────────────
-(function(){ renderEnrich('upload'); chatHistory=loadChat(); })();
-</script>
-
-</body>
-</html>
