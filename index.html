@@ -197,12 +197,12 @@ input[type=range]{width:100%;accent-color:var(--acc);cursor:pointer}
 
 <script>
 // ── CONFIG ──────────────────────────────────────────────────
-const API_URL = 'https://api.anthropic.com/v1/messages';
+const API_URL = 'https://shy-waterfall-8a1e.streiffnathan-432.workers.dev';
 const MODEL   = 'claude-sonnet-4-20250514';
 const CACHE_KEY      = 'adminai_enrich_cache_v3';
 const FAIL_CACHE_KEY = 'adminai_fail_cache_v1';
 const SESSION_KEY    = 'adminai_session_v2';
-const CHAT_KEY       = 'adminai_chat_history_v1';
+const CHAT_KEY       = 'adminai_chat_v3';
 const MAX_CHAT_TOKENS   = 1500;
 const MAX_ENRICH_TOKENS = 5000;
 const DEFAULT_BATCH_SIZE = 1;
@@ -388,41 +388,41 @@ async function sendChat(){
   inp.value='';inp.style.height='auto';chatFiles=[];renderAttached();el('sendBtn').disabled=true;
   appendMsg('user',text,uf.map(f=>f.file.name));
 
-  // Always send only the new message to avoid history format issues
   const parts=buildParts(text,uf.map(f=>f.ex));
-  // Keep history simple — only string content for assistant turns
-  const safeHistory=chatHistory
-    .filter(m=>m.role&&m.content)
-    .map(m=>({role:m.role, content:typeof m.content==='string'?m.content:text}))
-    .slice(-6); // last 3 exchanges only
-  safeHistory.push({role:'user',content:parts});
+
+  // Build system prompt with Excel context if file loaded
+  let system='Tu es un assistant administratif expert. Réponds en français, de façon claire et concise.';
+  if(wb&&activeSheet&&rows.length>0){
+    const total=rows.length;
+    const enriched=enrichResults.filter(r=>r&&r.status==='ok').length;
+    const missing=rowsToEnrich().length;
+    const sample=rows.slice(0,5).map(r=>r[nameCol]||'?').join(', ');
+    const byHq={};
+    rows.forEach(r=>{const h=r['Headquarter']||r['HQ']||'';if(h)byHq[h]=(byHq[h]||0)+1;});
+    const topHq=Object.entries(byHq).sort((a,b)=>b[1]-a[1]).slice(0,5).map(([k,v])=>`${k}:${v}`).join(', ');
+    system+=`\n\nFichier Excel chargé: "${xfile?.name||'fichier'}"
+Onglet actif: "${activeSheet}"
+Entreprises: ${total} total · ${enriched} enrichies · ${missing} à compléter
+Colonnes: ${hdrs.map(h=>h.lbl).join(', ')}
+Top villes: ${topHq||'N/A'}
+Exemples (5 premières): ${sample}`;
+  }
 
   showTyping();
   try{
-    const body={
+    // Send ONLY the current message — no history to avoid format errors
+    const d=await callAPI({
       model:MODEL,
       max_tokens:MAX_CHAT_TOKENS,
-      system:'Tu es un assistant administratif expert. Réponds en français, de façon claire et concise.',
-      messages:safeHistory
-    };
-    if(wsOn) body.tools=[{type:'web_search_20250305',name:'web_search'}];
-    const d=await callAPI(body);
-    const reply=(d.content||[]).filter(b=>b.type==='text').map(b=>b.text).join('\n')||'Recherche effectuée, aucun texte retourné.';
-    // Store only string in history
-    chatHistory.push({role:'user',content:text});
-    chatHistory.push({role:'assistant',content:reply});
-    if(chatHistory.length>20) chatHistory=chatHistory.slice(-20);
-    saveChat();
+      system,
+      messages:[{role:'user',content:parts}],
+      ...(wsOn?{tools:[{type:'web_search_20250305',name:'web_search'}]}:{})
+    });
+    const reply=(d.content||[]).filter(b=>b.type==='text').map(b=>b.text).join('\n')||'Aucune réponse.';
     removeTyping();appendMsg('assistant',reply);
   }catch(e){
     removeTyping();
-    // If invalid format error, reset history and retry once
-    if(e.message.includes('invalid')||e.message.includes('format')||e.message.includes('400')){
-      chatHistory=[];saveChat();
-      appendMsg('assistant','⚠️ Historique réinitialisé. Renvoie ton message.');
-    } else {
-      appendMsg('assistant','Erreur: '+e.message);
-    }
+    appendMsg('assistant','Erreur: '+e.message);
   }
   el('sendBtn').disabled=false;
 }
@@ -469,8 +469,6 @@ function detectGeo(ctx,row){
 
 // ── ENRICH CORE ──────────────────────────────────────────────
 async function enrichBatch(batch, fields, retryMode=false){
-  const lbls=fields.map(f=>FIELDS.find(x=>x.id===f)?.label.replace(/^[^ ]+ /,'')).join(', ');
-
   const companyLines=batch.map((b,i)=>{
     const missing=b.fn.join(', ');
     const ctxVals=Object.entries({...b.ctx,...b.row})
@@ -478,10 +476,10 @@ async function enrichBatch(batch, fields, retryMode=false){
       .map(([k,v])=>`${k}=${String(v).trim()}`)
       .slice(0,10);
     return[
-      `Entreprise ${i+1}`,
-      `Nom: "${b.company}"`,
-      `Champs à trouver: ${missing}`,
-      ctxVals.length?`Contexte: ${ctxVals.join(' | ')}`:null
+      `Company ${i+1}`,
+      `Name: "${b.company}"`,
+      `Fields needed: ${missing}`,
+      ctxVals.length?`Context: ${ctxVals.join(' | ')}`:null
     ].filter(Boolean).join('\n');
   }).join('\n\n');
 
@@ -494,95 +492,54 @@ async function enrichBatch(batch, fields, retryMode=false){
     "address": null
   }`).join(',\n');
 
-  const prompt=retryMode
-  ?`You are a Swiss B2B contact data researcher.
+  const prompt=`You are a Swiss B2B contact data researcher. Use web search to find real contact information.
 
-Your task: find REAL official contact data for the Swiss companies below.
+STEP-BY-STEP METHOD FOR EACH COMPANY:
 
-IMPORTANT:
-- This is a SECOND ATTEMPT on difficult companies.
-- Be more aggressive and flexible.
-- Search for each company INDIVIDUALLY.
-- Return partial data if only one field is found.
-- Never invent anything.
+STEP 1 — Find the official website:
+- Search: "[company name] [city if known] Switzerland official website"
+- Search: "[company name] site:local.ch" OR "[company name] site:search.ch"
+- Check Google Maps: search "[company name] [city] Switzerland" on Google Maps to get website + phone + address directly
+- Also try: "[company name] moneyhouse.ch" for Swiss registry data
 
-PRIORITY SOURCES:
-1. local.ch
-2. search.ch
-3. company official website
-4. moneyhouse.ch
-5. northdata / handelsregister style pages if useful
-6. Google Maps / official contact pages if needed
+STEP 2 — Once website found, extract contacts:
+- Visit the website's /contact OR /about OR /impressum page
+- Look for: email address, phone number, full postal address
+- These pages almost always contain the phone, email and address
 
-SEARCH METHOD FOR EACH COMPANY:
-- Search company name + city / canton / Switzerland
-- Search company name + "contact"
-- Search company name + "adresse"
-- Search company name + "téléphone"
-- Search company name + "email"
-- Search company name + "site officiel"
-- If website found, inspect likely contact/about/impressum page
+STEP 3 — If no website found, try directories directly:
+- local.ch, search.ch, zefix.ch, moneyhouse.ch
 
-RULES:
-- website = domain only, e.g. "abc.ch"
-- phone = only real business phone
-- email = only real professional email
-- address = full postal address if possible
-- If unsure, use null
-- Do NOT confuse with foreign companies
+${retryMode?`RETRY MODE: Previous search found nothing. Be more creative:
+- Try searching just the first word of the company name + Switzerland
+- Try "[company name] LinkedIn" to find their website
+- Try "[company name] FINMA" for financial companies
+- Try variations of the company name`:''}
 
-COMPANIES:
+COMPANIES TO RESEARCH:
 ${companyLines}
 
-Return ONLY a valid JSON array:
-[
-${jsonTemplate}
-]`
-  :`You are a Swiss B2B contact data researcher.
+CRITICAL RULES:
+- Search web for EACH company — never skip any
+- website = domain only, no https:// (e.g. "company.ch")
+- phone = real Swiss business number
+- email = real professional email (not noreply@, not example.com)
+- address = full Swiss postal address with NPA and city
+- If genuinely not found after searching: null
+- NEVER invent data
 
-Your task: find REAL official contact data for the Swiss companies below.
-
-You MUST search each company individually and return whatever you can find.
-
-PRIORITY SOURCES:
-1. local.ch
-2. search.ch
-3. official company website
-4. moneyhouse.ch
-5. Swiss directories and contact pages
-
-SEARCH STRATEGY:
-- Search "[company name] Switzerland"
-- Search "[company name] contact"
-- Search "[company name] local.ch"
-- Search "[company name] search.ch"
-- If city/address context exists, USE IT to disambiguate
-
-IMPORTANT RULES:
-- Return partial results if only one field is found
-- Never invent data
-- website = domain only, e.g. "abc.ch"
-- phone = business phone only
-- email = real professional email only
-- address = full postal address if possible
-- If not found: null
-
-COMPANIES:
-${companyLines}
-
-Return ONLY a valid JSON array:
+Return ONLY a valid JSON array, no text before or after:
 [
 ${jsonTemplate}
 ]`;
 
-  const body={
+  const d=await callAPI({
     model:MODEL,
     max_tokens:MAX_ENRICH_TOKENS,
     tools:[{type:'web_search_20250305',name:'web_search'}],
     messages:[{role:'user',content:prompt}]
-  };
+  });
 
-  const d=await callAPI(body);
   const raw=(d.content||[]).filter(b=>b.type==='text').map(b=>b.text).join('');
 
   try{
@@ -608,6 +565,9 @@ ${jsonTemplate}
     return{ok:false,data:null,geo};
   });
 }
+
+
+
 // ── RENDER ENRICH ────────────────────────────────────────────
 function renderEnrich(step){
   const c=el('enrichContent');
@@ -979,10 +939,10 @@ function exportProgress(){
 
 // ── INIT ─────────────────────────────────────────────────────
 (function(){
-  renderEnrich('upload');
-  // Reset chat history — old format caused "Invalid response format"
-  chatHistory=[];
+  // Clear all caches on fresh start to avoid stale format errors
   try{localStorage.removeItem(CHAT_KEY);}catch{}
+  chatHistory=[];
+  renderEnrich('upload');
 })();
 </script>
 
