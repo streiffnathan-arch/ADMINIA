@@ -375,7 +375,16 @@ function removeTyping(){el('typing')?.remove();}
 function buildParts(text,files){const p=[];files.forEach(f=>{if(f.type==='pdf'){p.push({type:'document',source:{type:'base64',media_type:'application/pdf',data:f.b64}});p.push({type:'text',text:`[PDF: ${f.name}]`});}else if(f.type==='img'){p.push({type:'image',source:{type:'base64',media_type:f.mime,data:f.b64}});p.push({type:'text',text:`[Image: ${f.name}]`});}else if(f.type==='txt'){p.push({type:'text',text:`[${f.name}]\n\`\`\`\n${f.text}\n\`\`\``});}});if(text.trim())p.push({type:'text',text});return p;}
 
 async function callAPI(body){
-  const r=await fetch(API_URL,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(body)});
+  const r=await fetch(API_URL,{
+    method:'POST',
+    headers:{
+      'Content-Type':'application/json',
+      'x-api-key': API_KEY,
+      'anthropic-version': '2023-06-01',
+      'anthropic-dangerous-direct-browser-access': 'true'
+    },
+    body:JSON.stringify(body)
+  });
   if(!r.ok){const e=await r.text();throw new Error(`API ${r.status}: ${e}`);}
   const d=await r.json();
   if(d.error){throw new Error(d.error.message||JSON.stringify(d.error));}
