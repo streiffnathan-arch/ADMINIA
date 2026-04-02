@@ -540,43 +540,54 @@ async function enrichBatch(batch, fields, retryMode=false){
     "address": null
   }`).join(',\n');
 
-  const prompt=`You are a Swiss B2B contact data researcher. Use web search to find real contact information.
+  const prompt=`You are an expert Swiss B2B contact researcher. Your job is to find REAL contact data using web search. High fill rate is critical.
 
-STEP-BY-STEP METHOD FOR EACH COMPANY:
+=== RESEARCH STRATEGY (follow in order) ===
 
-STEP 1 — Find the official website:
-- Search: "[company name] [city if known] Switzerland official website"
-- Search: "[company name] site:local.ch" OR "[company name] site:search.ch"
-- Check Google Maps: search "[company name] [city] Switzerland" on Google Maps to get website + phone + address directly
-- Also try: "[company name] moneyhouse.ch" for Swiss registry data
+FOR EACH COMPANY:
 
-STEP 2 — Once website found, extract contacts:
-- Visit the website's /contact OR /about OR /impressum page
-- Look for: email address, phone number, full postal address
-- These pages almost always contain the phone, email and address
+1. WEBSITE FIRST — search: "[company name] Switzerland site officiel"
+   - Also try: "[company name] Genève" or "[company name] Zurich" or "[company name] Suisse"
+   - Try: site:local.ch "[company name]"
+   - Try: "[company name] moneyhouse" — moneyhouse.ch always has address + sometimes phone
+   - Try: "[company name] zefix.ch" — Swiss commercial register, has official address
+   - Try: "[company name] FINMA" for regulated financial firms — FINMA liste has websites
 
-STEP 3 — If no website found, try directories directly:
-- local.ch, search.ch, zefix.ch, moneyhouse.ch
+2. PHONE — once you have the website, visit /contact or /impressum page
+   - Swiss phone format: +41 XX XXX XX XX or 0XX XXX XX XX
+   - Also try: local.ch direct search for the company name + city
+   - search.ch also has phone numbers for Swiss companies
 
-${retryMode?`RETRY MODE: Previous search found nothing. Be more creative:
-- Try searching just the first word of the company name + Switzerland
-- Try "[company name] LinkedIn" to find their website
-- Try "[company name] FINMA" for financial companies
-- Try variations of the company name`:''}
+3. EMAIL — visit the website's contact page
+   - Common patterns: info@[domain], contact@[domain], reception@[domain]
+   - For Geneva firms: often listed on local.ch or the FINMA register
 
-COMPANIES TO RESEARCH:
+4. ADDRESS — use whatever you found above + zefix.ch or moneyhouse.ch
+   - Swiss address format: Street NPA City (e.g. "Rue du Rhône 14, 1204 Genève")
+   - The geo context provided already has a partial address — USE IT to fill gaps
+
+${retryMode?`=== RETRY MODE — previous attempt returned nothing ===
+Be MORE aggressive:
+- Search just the first meaningful word + "Genève" or "Switzerland"  
+- Try "[company name] LinkedIn" — LinkedIn company pages often list website + phone
+- Try Google Maps: "[company name] [city]" — Google Maps shows phone + address + website
+- Try "[company name] contact email" directly
+- For financial firms: check FINMA's supervised institutions list at finma.ch
+- Accept partial matches — a phone without email is still valuable
+- If only address found from geo context, output that address`:''}
+
+=== COMPANIES ===
 ${companyLines}
 
-CRITICAL RULES:
-- Search web for EACH company — never skip any
-- website = domain only, no https:// (e.g. "company.ch")
-- phone = real Swiss business number
-- email = real professional email (not noreply@, not example.com)
-- address = full Swiss postal address with NPA and city
-- If genuinely not found after searching: null
-- NEVER invent data
+=== OUTPUT RULES ===
+- website: domain only, NO https:// prefix (e.g. "company.ch" not "https://company.ch")
+- phone: Swiss format preferred (+41...), digits and spaces/dashes OK
+- email: real professional address only — NEVER invent, NEVER use noreply@ or example.com
+- address: full address with street, NPA, and city
+- If a field is truly not findable after searching: null
+- NEVER fabricate data
 
-Return ONLY a valid JSON array, no text before or after:
+Return ONLY a valid JSON array. No text before or after:
 [
 ${jsonTemplate}
 ]`;
@@ -789,7 +800,8 @@ async function startEnrich(){
     <div class="exbtns" style="margin-bottom:10px">
       <button class="exbtn" id="pauseBtn" onclick="togglePause()">⏸ Pause</button>
       <button class="exbtn" onclick="requestStop()">⛔ Stop</button>
-      <button class="exbtn" onclick="exportProgress()">💾 Export</button>
+      <button class="exbtn" onclick="exportXls()">📥 Excel partiel</button>
+      <button class="exbtn" onclick="exportProgress()">💾 JSON</button>
     </div>
     <div class="scard">
       <div class="prow">
@@ -985,7 +997,37 @@ async function startEnrich(){
 }
 
 // ── EXPORTS ──────────────────────────────────────────────────
-function exportXls(){if(finalWb)XLSX.writeFile(finalWb,xfile.name.replace(/\.[^.]+$/,'')+'_enrichi.xlsx');}
+function exportXls(){
+  // Si finalWb disponible (enrichissement terminé), l'utiliser directement
+  if(finalWb){
+    XLSX.writeFile(finalWb, xfile.name.replace(/\.[^.]+$/,'')+'_enrichi.xlsx');
+    return;
+  }
+  // Sinon construire à la volée depuis les résultats actuels
+  if(!wb||!enrichResults.length){
+    alert('Aucune donnée à exporter pour l\'instant.');
+    return;
+  }
+  const wbCopy=XLSX.read(XLSX.write(wb,{type:'array',bookType:'xlsx'}),{type:'array'});
+  const ws=wbCopy.Sheets[activeSheet];
+  enrichResults.forEach(r=>{
+    if(!r||r.status!=='ok'||!r.data)return;
+    const rowIdx=rows.findIndex(row=>row[nameCol]===r.company);
+    if(rowIdx<0)return;
+    const excelRow=rowIdx+2; // +1 header, +1 1-indexed
+    selFields.forEach(fid=>{
+      const col=colMap[fid];
+      if(!col||col==='__')return;
+      const hdrIdx=hdrs.findIndex(h=>h.lbl===col);
+      if(hdrIdx<0)return;
+      const val=r.data[fid];
+      if(!val)return;
+      const cellAddr=XLSX.utils.encode_cell({r:excelRow-1,c:hdrIdx});
+      ws[cellAddr]={t:'s',v:val};
+    });
+  });
+  XLSX.writeFile(wbCopy, xfile.name.replace(/\.[^.]+$/,'')+'_enrichi_partiel.xlsx');
+}
 function exportCsv(){
   if(!finalWb)return;
   const csv=XLSX.utils.sheet_to_csv(finalWb.Sheets[activeSheet]);
