@@ -312,9 +312,22 @@ function switchTab(tab){
   el('chatPanel').classList.toggle('active',tab==='chat');
   el('enrichPanel').classList.toggle('active',tab==='enrich');
   el('wsBtn').parentElement.style.display=tab==='chat'?'flex':'none';
-  if(tab==='enrich') renderEnrich();
+  // Ne réinitialise PAS si l'enrichissement est en cours
+  if(tab==='enrich' && !processing) renderEnrich();
+  updateEnrichBadge();
 }
-function toggleWebSearch(){ wsOn=!wsOn; el('wsBtn').classList.toggle('on',wsOn); }
+function updateEnrichBadge(){
+  const btn=document.querySelectorAll('.tab')[1];
+  if(!btn) return;
+  if(processing){
+    const ok=enrichResults.filter(r=>r&&r.status==='ok').length;
+    const done=enrichResults.filter(r=>r!==null).length;
+    btn.textContent=`📊 ⚡${done} enrichies`;
+  } else {
+    btn.textContent='📊 Enrichir Excel';
+  }
+}
+
 
 // ── WAKE LOCK + AUDIO ────────────────────────────────────────
 let _wl=null,_actx=null,_asrc=null;
@@ -397,23 +410,42 @@ async function sendChat(){
 
   const parts=buildParts(text,uf.map(f=>f.ex));
 
-  // Build system prompt with Excel context if file loaded
-  let system='Tu es un assistant administratif expert. Réponds en français, de façon claire et concise.';
+  // Build system prompt with full context
+  let system='Tu es un assistant administratif expert intégré à AdminAI. Réponds en français, de façon claire et concise.';
+
+  // Contexte fichier Excel
   if(wb&&activeSheet&&rows.length>0){
     const total=rows.length;
     const enriched=enrichResults.filter(r=>r&&r.status==='ok').length;
+    const done=enrichResults.filter(r=>r!==null).length;
     const missing=rowsToEnrich().length;
     const sample=rows.slice(0,5).map(r=>r[nameCol]||'?').join(', ');
     const byHq={};
     rows.forEach(r=>{const h=r['Headquarter']||r['HQ']||'';if(h)byHq[h]=(byHq[h]||0)+1;});
-    const topHq=Object.entries(byHq).sort((a,b)=>b[1]-a[1]).slice(0,5).map(([k,v])=>`${k}:${v}`).join(', ');
-    system+=`\n\nFichier Excel chargé: "${xfile?.name||'fichier'}"
-Onglet actif: "${activeSheet}"
-Entreprises: ${total} total · ${enriched} enrichies · ${missing} à compléter
+    const topHq=Object.entries(byHq).sort((a,b)=>b[1]-a[1]).slice(0,5).map(([k,v])=>`${k}: ${v}`).join(', ');
+
+    system+=`\n\n=== FICHIER EXCEL CHARGÉ ===
+Fichier: "${xfile?.name||'fichier'}" · Onglet: "${activeSheet}"
+Total entreprises: ${total} · Enrichies: ${enriched} · Traitées: ${done} · Restantes: ${missing}
+${processing?`⚡ ENRICHISSEMENT EN COURS: ${done}/${total} (${Math.round(done/total*100)}%)`:''}
 Colonnes: ${hdrs.map(h=>h.lbl).join(', ')}
 Top villes: ${topHq||'N/A'}
-Exemples (5 premières): ${sample}`;
+Exemples: ${sample}`;
+
+    // Ajouter les derniers résultats d'enrichissement
+    const recentOk=enrichResults.filter(r=>r&&r.status==='ok').slice(-5);
+    if(recentOk.length>0){
+      system+=`\n\nDernières entreprises enrichies:\n${recentOk.map(r=>`- ${r.company}: web=${r.data?.website||'—'} tel=${r.data?.phone||'—'} email=${r.data?.email||'—'}`).join('\n')}`;
+    }
   }
+
+  system+=`\n\n=== TES CAPACITÉS ===
+Tu peux:
+- Répondre à des questions sur le fichier Excel chargé
+- Faire des recherches web sur des entreprises spécifiques
+- Donner des informations de contact pour une entreprise (recherche toi-même si besoin)
+- Analyser la progression de l'enrichissement
+- Suggérer des améliorations au processus`;
 
   showTyping();
   try{
@@ -578,6 +610,11 @@ ${jsonTemplate}
 // ── RENDER ENRICH ────────────────────────────────────────────
 function renderEnrich(step){
   const c=el('enrichContent');
+  // Si enrichissement en cours, ne rien écraser — juste mettre à jour le badge
+  if(processing && !step){
+    updateEnrichBadge();
+    return;
+  }
   if(!step){ if(!wb) step='upload'; else if(enrichResults.length>0&&finalWb) step='done'; else step='config'; }
 
   if(step==='upload'){
@@ -808,6 +845,7 @@ async function startEnrich(){
     if(ok)ok.textContent=okCount+' ✓';
     if(eta&&done>0&&done<total)eta.textContent=`~${fmts(Math.round(elapsed/done*(total-done)))} restant`;
     document.title=`⏳ ${done}/${total} — AdminAI`;
+    updateEnrichBadge();
   };
   const appendLiveRow=(r)=>{
     const tb=el('liveBody');if(!tb)return;
