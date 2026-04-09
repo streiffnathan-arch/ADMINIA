@@ -803,11 +803,17 @@ async function startEnrich(){
   if(processing)return;
   processing=true;paused=false;stopRequested=false;
 
+  // toEnrich = lignes qui manquent encore des données
   const toEnrich=rowsToEnrich();
-  if(!toEnrich.length){processing=false;return;}
+  if(!toEnrich.length){processing=false;renderEnrich('done');return;}
   const total=toEnrich.length;
 
-  enrichResults=new Array(total).fill(null);finalWb=null;
+  // enrichResults indexé par index réel dans rows[]
+  // On préserve les résultats existants (pour resumeEnrich)
+  if(enrichResults.length!==rows.length){
+    enrichResults=new Array(rows.length).fill(null);
+  }
+  finalWb=null;
 
   const c=el('enrichContent');
   c.innerHTML=`
@@ -815,8 +821,8 @@ async function startEnrich(){
     <div class="wlbanner">
       <div class="wlico">🔆</div>
       <div class="wltxt">
-        <b>Protection veille active · ${speed} lots en parallèle · ${batchSize} entreprises/lot</b>
-        <span>Boucle audio + Wake Lock actifs. Un son te préviendra à la fin.</span>
+        <b>Enrichissement en cours · ${total} lignes à traiter</b>
+        <span>Wake Lock actif. Un son te préviendra à la fin.</span>
       </div>
     </div>
     <div class="exbtns" style="margin-bottom:10px">
@@ -829,12 +835,6 @@ async function startEnrich(){
       <div class="prow">
         <div class="pbar"><div class="pfill" id="pfill" style="width:0%"></div></div>
         <div class="ppct" id="ppct">0/${total}</div>
-      </div>
-      <div>
-        <div style="font-size:11px;color:var(--txt2);font-family:'DM Mono';margin-bottom:5px">${speed} lots actifs :</div>
-        <div class="workers" id="workers">
-          ${Array.from({length:speed},(_,i)=>`<div class="wkr" id="wkr${i}"><span class="wkr-ico">⏸</span><span class="wkr-nm" style="color:var(--txt3)">En attente…</span></div>`).join('')}
-        </div>
       </div>
       <div class="srow">
         <span class="slbl">Durée</span>
@@ -855,36 +855,29 @@ async function startEnrich(){
   await wakeLockOn();
   elapsed=0;
   timerInterval=setInterval(()=>{elapsed++;const dv=el('durVal');if(dv)dv.textContent=fmts(elapsed);},1000);
-  const origTitle=document.title;
   document.title=`⏳ 0/${total} — AdminAI`;
 
   const wbCopy=XLSX.read(XLSX.write(wb,{type:'array',bookType:'xlsx'}),{type:'array'});
   const ws=wbCopy.Sheets[activeSheet];
 
   let done=0, batchIdx=0;
+  let okCount=0;
 
-  // Build batches
+  // Batches: chaque item a un rowIndex réel pour enrichResults[]
   const batches=[];
   for(let i=0;i<total;i+=batchSize){
-    batches.push(toEnrich.slice(i,i+batchSize).map((row,j)=>{
-      const ctx={};
-      FIELDS.forEach(f=>{const c=colMap[f.id];if(c&&c!=='__'&&!empty(row[c]))ctx[f.label.replace(/^[^ ]+ /,'')]=row[c];});
-      Object.entries(row).forEach(([k,v])=>{if(k!=='_row'&&!empty(v)&&!Object.values(ctx).includes(v))ctx[k]=v;});
+    batches.push(toEnrich.slice(i,i+batchSize).map(row=>{
+      const rowIndex=rows.indexOf(row);
       const fn=selFields.filter(fid=>{const c=colMap[fid];return c&&c!=='__'&&empty(row[c]);});
-      return{company:String(row[nameCol]).trim(),ctx,row,fn,globalIdx:i+j};
+      const geo=detectGeo({},row);
+      return{company:String(row[nameCol]).trim(),row,fn,rowIndex,geo};
     }));
   }
 
-  const updateWorker=(wi,text,doneState)=>{
-    const w=el(`wkr${wi}`);if(!w)return;
-    if(doneState){w.innerHTML=`<span class="wkr-ico">✅</span><span class="wkr-nm" style="color:var(--ok)">Terminé</span>`;}
-    else if(text){w.innerHTML=`<span class="wkr-ico">⚡</span><span class="wkr-nm" style="color:var(--acc)">${text}</span>`;}
-  };
   const updateProgress=()=>{
     const pf=el('pfill'),pp=el('ppct'),ok=el('okVal'),eta=el('etaVal');
     if(pf)pf.style.width=(done/total*100)+'%';
     if(pp)pp.textContent=`${done}/${total}`;
-    const okCount=enrichResults.filter(r=>r&&r.status==='ok').length;
     if(ok)ok.textContent=okCount+' ✓';
     if(eta&&done>0&&done<total)eta.textContent=`~${fmts(Math.round(elapsed/done*(total-done)))} restant`;
     document.title=`⏳ ${done}/${total} — AdminAI`;
@@ -894,14 +887,15 @@ async function startEnrich(){
     const tb=el('liveBody');if(!tb)return;
     const lr=el('liveResults');if(lr)lr.style.display='';
     const tr=document.createElement('tr');
-    tr.innerHTML=`<td class="tn">${r.company}</td>${selFields.map(f=>{const v=r.data?.[f];return`<td>${v&&v!=='null'?`<span class="tf">${v}</span>`:'<span class="te">—</span>'}</td>`;}).join('')}<td><span class="badge ${r.status==='ok'?'bok':'bno'}">${r.status==='ok'?'✓':'—'}</span></td>`;
+    const hasData=r.data&&Object.values(r.data).some(v=>v&&v!=='null');
+    tr.innerHTML=`<td class="tn">${r.company}</td>${selFields.map(f=>{const v=r.data?.[f];return`<td>${v&&v!=='null'?`<span class="tf">${v}</span>`:'<span class="te">—</span>'}</td>`;}).join('')}<td><span class="badge ${hasData?'bok':'bno'}">${hasData?'✓':'—'}</span></td>`;
     tb.appendChild(tr);
   };
 
   const cache=getCache();
   const failCache=getFailCache();
 
-  const worker=async(wi)=>{
+  const worker=async()=>{
     while(true){
       await waitIfPaused();
       if(stopRequested)break;
@@ -909,107 +903,203 @@ async function startEnrich(){
       if(bi>=batches.length)break;
 
       const batch=batches[bi];
-      const names=batch.map(b=>b.company).join(', ');
-      updateWorker(wi,names.substring(0,55)+'…',false);
+      const names=batch.map(b=>b.company).join(', ').substring(0,60)+'…';
 
-      // Check cache + fail cache
-      const cachedResults=new Array(batch.length).fill(null);
-      const needLookup=[];
-      batch.forEach((b,j)=>{
-        const geo=detectGeo(b.ctx,b.row);
-        const key=cacheKey(b.company,geo||'');
-        if(cache[key]){
-          cachedResults[j]={ok:true,data:cache[key],geo};
-        } else if(failCache[key]&&failCache[key]>=2){
-          cachedResults[j]={ok:false,data:null,geo};
-        } else {
-          needLookup.push({b,j});
-        }
+      // Vérifier cache
+      const cachedResults=batch.map(b=>{
+        const key=cacheKey(b.company,b.geo||'');
+        if(cache[key]) return{data:cache[key]};
+        if(failCache[key]&&failCache[key]>=2) return{data:null};
+        return null;
       });
 
-      let fetched=[];
+      const needLookup=batch.map((b,j)=>cachedResults[j]===null?j:-1).filter(j=>j>=0);
+
+      let fetched=new Array(batch.length).fill(null);
+
       if(needLookup.length){
+        // Build the prompt with max context per company
+        const companyLines=needLookup.map(j=>{
+          const b=batch[j];
+          const existing=[];
+          selFields.forEach(fid=>{const c=colMap[fid];if(c&&c!=='__'&&!empty(b.row[c]))existing.push(`${fid}=${b.row[c]}`);});
+          const extraCtx=Object.entries(b.row).filter(([k,v])=>k!=='_row'&&!empty(v)&&v.length>1).slice(0,8).map(([k,v])=>`${k}=${v}`);
+          return[
+            `COMPANY: "${b.company}"`,
+            b.geo?`Location hint: ${b.geo}`:'',
+            existing.length?`Already known: ${existing.join(' | ')}`:'',
+            extraCtx.length?`Row context: ${extraCtx.join(' | ')}`:'',
+            `Need: ${b.fn.join(', ')}`
+          ].filter(Boolean).join('\n');
+        }).join('\n\n---\n\n');
+
+        const jsonTemplate=needLookup.map(j=>`  {"idx":${j},"website":null,"phone":null,"email":null,"address":null}`).join(',\n');
+
+        const prompt=`You are a professional Swiss B2B data researcher. Find REAL contact data using multiple web searches. MAXIMIZE fill rate.
+
+INSTRUCTIONS PER COMPANY:
+
+1. SEARCH MULTIPLE SOURCES IN ORDER:
+   a) Google: "[name] [city] contact Switzerland"  
+   b) Visit official website → /contact /impressum /about
+   c) moneyhouse.ch → always has registered address
+   d) zefix.ch → official Swiss registry with address
+   e) local.ch or search.ch → phone + address
+   f) LinkedIn company page → website link
+   g) FINMA supervised list (finma.ch) → for financial firms
+
+2. FOR ADDRESS: Use the location hint provided. Swiss NPA format = 4 digits (e.g. 1204 Genève).
+   If you find the company on zefix/moneyhouse, ALWAYS extract the full address.
+   
+3. FOR PHONE: Swiss format +41 XX XXX XX XX. Check website footer, contact page, local.ch.
+
+4. FOR EMAIL: Visit /contact page. Try info@domain, contact@domain. Check impressum.
+
+5. FOR WEBSITE: Try [companyname].ch, [companyname].com, search Google.
+
+CRITICAL: 
+- Run at least 2-3 searches per company
+- zefix.ch and moneyhouse.ch ALWAYS have the registered address for Swiss companies
+- local.ch ALWAYS has phone for companies listed there
+- website = domain only WITHOUT https:// (e.g. "company.ch")
+- NEVER invent data. If not found = null.
+
+${needLookup.length>1?'COMPANIES (research each independently):':'COMPANY:'}
+${companyLines}
+
+Return ONLY valid JSON array:
+[
+${jsonTemplate}
+]`;
+
         try{
-          // PASS 1 — recherche normale
-          fetched=await enrichBatch(needLookup.map(x=>x.b),selFields,false);
-          await sleep(ENRICH_DELAY_MS); // pause pour éviter rate limit
+          const d=await callAPI({
+            model:MODEL,
+            max_tokens:MAX_ENRICH_TOKENS,
+            tools:[{type:'web_search_20250305',name:'web_search'}],
+            messages:[{role:'user',content:prompt}]
+          });
+          const raw=(d.content||[]).filter(b=>b.type==='text').map(b=>b.text).join('');
 
-          // PASS 2 — retry sur les résultats vides
-          const weakIdx=fetched.map((r,idx)=>{
-            const b=needLookup[idx].b;
-            const useful=r?.data?b.fn.filter(f=>r.data[f]).length:0;
-            return useful===0?idx:-1;
-          }).filter(idx=>idx>=0);
+          // Parse JSON
+          let parsed=[];
+          try{
+            const s=raw.indexOf('['),e=raw.lastIndexOf(']');
+            if(s>=0&&e>s) parsed=JSON.parse(raw.slice(s,e+1));
+          }catch{}
 
-          if(weakIdx.length){
-            const retryBatch=weakIdx.map(idx=>needLookup[idx].b);
-            const retryResults=await enrichBatch(retryBatch,selFields,true);
+          needLookup.forEach(j=>{
+            const found=parsed.find(x=>Number(x.idx)===j)||parsed[needLookup.indexOf(j)]||null;
+            const data=sanitize(found||{});
+            const hasData=data&&Object.values(data).some(v=>v&&v!=='null');
+            fetched[j]={data:hasData?data:null};
+            // Update cache
+            const key=cacheKey(batch[j].company,batch[j].geo||'');
+            if(hasData){ cache[key]=data; delete failCache[key]; }
+            else { failCache[key]=(failCache[key]||0)+1; }
+          });
+          saveCache(cache);
+          saveFailCache(failCache);
+
+          // PASS 2: retry companies still with no data
+          const stillEmpty=needLookup.filter(j=>!fetched[j]?.data);
+          if(stillEmpty.length && !stopRequested){
             await sleep(ENRICH_DELAY_MS);
-            weakIdx.forEach((origIdx,k)=>{
-              const oldCount=fetched[origIdx]?.data?Object.values(fetched[origIdx].data).filter(Boolean).length:0;
-              const newCount=retryResults[k]?.data?Object.values(retryResults[k].data).filter(Boolean).length:0;
-              if(newCount>oldCount) fetched[origIdx]=retryResults[k];
-            });
+            const retryLines=stillEmpty.map(j=>{
+              const b=batch[j];
+              return`COMPANY: "${b.company}"\nLocation: ${b.geo||'Switzerland'}\nNeed: ${b.fn.join(', ')}`;
+            }).join('\n\n---\n\n');
+            const retryTemplate=stillEmpty.map(j=>`  {"idx":${j},"website":null,"phone":null,"email":null,"address":null}`).join(',\n');
+            const retryPrompt=`RETRY - Previous search found nothing. Be more aggressive.
+
+For each company below, try ALL of these:
+- Search Google Maps: "[name] [city]" → shows phone + address + website
+- Search "[name] Suisse contact email"
+- Search "[name] FINMA" or "[name] ZEFIX"
+- Try linkedin.com/company/[name-lowercase]
+- Try just the first distinctive word of the name + "Genève" or "Switzerland"
+- For pension funds (Pensionskasse, Caisse de pension): search "[name] adresse NPA"
+- Accept ANY partial data found — address alone is valuable
+
+${retryLines}
+
+Return ONLY JSON:
+[
+${retryTemplate}
+]`;
+            try{
+              const d2=await callAPI({
+                model:MODEL,
+                max_tokens:MAX_ENRICH_TOKENS,
+                tools:[{type:'web_search_20250305',name:'web_search'}],
+                messages:[{role:'user',content:retryPrompt}]
+              });
+              const raw2=(d2.content||[]).filter(b=>b.type==='text').map(b=>b.text).join('');
+              let parsed2=[];
+              try{
+                const s=raw2.indexOf('['),e=raw2.lastIndexOf(']');
+                if(s>=0&&e>s) parsed2=JSON.parse(raw2.slice(s,e+1));
+              }catch{}
+              stillEmpty.forEach(j=>{
+                const found=parsed2.find(x=>Number(x.idx)===j)||null;
+                const data=sanitize(found||{});
+                const hasData=data&&Object.values(data).some(v=>v&&v!=='null');
+                if(hasData){
+                  fetched[j]={data};
+                  const key=cacheKey(batch[j].company,batch[j].geo||'');
+                  cache[key]=data; delete failCache[key];
+                }
+              });
+              saveCache(cache);
+              saveFailCache(failCache);
+            }catch{}
           }
         }catch(err){
-          // Rate limit → attendre plus longtemps
           if(err.message.includes('429')){
-            updateWorker(wi,'⏳ Rate limit — pause 60s…',false);
             await sleep(60000);
           }
-          fetched=needLookup.map(()=>({ok:false,data:null,geo:null}));
         }
       }
 
-      let fi=0;
-      const finalResults=batch.map((b,j)=>{
-        if(cachedResults[j])return cachedResults[j];
-        const res=fetched[fi++]||{ok:false,data:null,geo:null};
-        const geo=detectGeo(b.ctx,b.row);
-        const key=cacheKey(b.company,geo||'');
-        if(res.ok&&res.data&&hasUsefulData(res.data,b.fn)) cache[key]=res.data;
-        return{...res,geo};
-      });
-      saveCache(cache);
+      // Write results
+      batch.forEach((b,j)=>{
+        const res=cachedResults[j]!==null?cachedResults[j]:fetched[j]||{data:null};
+        const data=res?.data||null;
+        const hasData=data&&Object.values(data).some(v=>v&&v!=='null');
 
-      // Update fail cache
-      finalResults.forEach((res,j)=>{
-        const b=batch[j];
-        const geo=detectGeo(b.ctx,b.row);
-        const key=cacheKey(b.company,geo||'');
-        const usefulCount=res?.data?Object.values(res.data).filter(Boolean).length:0;
-        if(usefulCount===0){ failCache[key]=(failCache[key]||0)+1; }
-        else{ delete failCache[key]; }
-      });
-      saveFailCache(failCache);
-
-      finalResults.forEach((res,j)=>{
-        const b=batch[j];
-        const bfn=b.fn;
-        if(res.ok&&res.data){
-          bfn.forEach(fid=>{
-            const col=colMap[fid],val=res.data[fid];
-            if(col&&col!=='__'&&val&&val!=='null'&&val!==null){
-              const hi=hdrs.find(h=>h.lbl===col)?.i;
-              if(hi!==undefined){const ca=XLSX.utils.encode_cell({r:b.row._row-1,c:hi});ws[ca]={v:val,t:'s'};}
+        // Write to Excel workbook
+        if(hasData){
+          b.fn.forEach(fid=>{
+            const col=colMap[fid];
+            if(!col||col==='__')return;
+            const hi=hdrs.find(h=>h.lbl===col)?.i;
+            const val=data[fid];
+            if(hi!==undefined&&val&&val!=='null'){
+              const ca=XLSX.utils.encode_cell({r:b.row._row-1,c:hi});
+              ws[ca]={v:val,t:'s'};
             }
           });
+          okCount++;
         }
-        const filled=res.ok&&res.data?bfn.filter(f=>res.data[f]&&res.data[f]!=='null'&&res.data[f]!==null).length:0;
-        const result={company:b.company,status:filled>0?'ok':'none',data:res.data,fn:bfn,geo:res.geo};
-        enrichResults[b.globalIdx]=result;
-        done++;updateProgress();appendLiveRow(result);
+
+        // Store result indexed by real row index
+        const result={company:b.company,status:hasData?'ok':'none',data,fn:b.fn,geo:b.geo};
+        if(b.rowIndex>=0) enrichResults[b.rowIndex]=result;
+
+        done++;
+        updateProgress();
+        appendLiveRow(result);
       });
+
+      await sleep(ENRICH_DELAY_MS);
     }
-    updateWorker(wi,null,true);
   };
 
-  const numWorkers=Math.min(speed,batches.length);
-  await Promise.all(Array.from({length:numWorkers},(_,i)=>worker(i)));
+  // 1 seul worker pour éviter rate limit
+  await worker();
 
   clearInterval(timerInterval);wakeLockOff();
   finalWb=wbCopy;
-  const okCount=enrichResults.filter(r=>r&&r.status==='ok').length;
   if(!stopRequested)chime();
   document.title=`✅ ${okCount}/${total} enrichis — AdminAI`;
   setTimeout(()=>{document.title='AdminAI';},30000);
@@ -1051,8 +1141,9 @@ function exportXls(){
   XLSX.writeFile(wbCopy, xfile.name.replace(/\.[^.]+$/,'')+'_enrichi_partiel.xlsx');
 }
 function exportCsv(){
-  if(!finalWb)return;
-  const csv=XLSX.utils.sheet_to_csv(finalWb.Sheets[activeSheet]);
+  const src=finalWb||null;
+  if(!src){exportXls();return;}
+  const csv=XLSX.utils.sheet_to_csv(src.Sheets[activeSheet]);
   const b=new Blob(['\uFEFF'+csv],{type:'text/csv;charset=utf-8'});
   const u=URL.createObjectURL(b),a=document.createElement('a');
   a.href=u;a.download=xfile.name.replace(/\.[^.]+$/,'')+'_enrichi.csv';a.click();
