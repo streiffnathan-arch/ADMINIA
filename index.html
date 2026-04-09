@@ -635,7 +635,11 @@ function renderEnrich(step){
     updateEnrichBadge();
     return;
   }
-  if(!step){ if(!wb) step='upload'; else if(enrichResults.length>0&&finalWb) step='done'; else step='config'; }
+  if(!step){
+    if(!wb) step='upload';
+    else if(finalWb || enrichResults.filter(r=>r&&r.status==='ok').length>0) step='done';
+    else step='config';
+  }
 
   if(step==='upload'){
     c.innerHTML=`
@@ -732,19 +736,22 @@ function renderEnrich(step){
 
   if(step==='done'){
     const ok=enrichResults.filter(r=>r&&r.status==='ok').length;
+    const pending=enrichResults.filter(r=>!r||r.status==='none').length;
+    const total=enrichResults.length;
     c.innerHTML=`
     <div class="sec">
-      <div class="donebanner">
-        <div class="doneico">🎉</div>
+      <div class="donebanner" style="${ok===0?'background:rgba(224,85,85,.1);border-color:rgba(224,85,85,.3)':''}">
+        <div class="doneico">${ok===0?'⚠️':'🎉'}</div>
         <div class="donetxt">
-          <b>Enrichissement terminé !</b>
-          <span>${ok}/${enrichResults.length} lignes enrichies · Durée : ${fmts(elapsed)}</span>
+          <b>${ok===0?'Aucune ligne enrichie':'Enrichissement terminé !'}</b>
+          <span>${ok}/${total} enrichies${pending>0?` · <span style="color:var(--acc)">${pending} restantes non traitées</span>`:''} · Durée : ${fmts(elapsed)}</span>
         </div>
       </div>
       <div class="exbtns">
-        <button class="exbtn" onclick="exportXls()">⬇️ Excel enrichi</button>
+        ${pending>0?`<button class="runbtn" style="margin:0;padding:10px 18px;font-size:13px" onclick="resumeEnrich()">▶️ Continuer (${pending} restantes)</button>`:''}
+        <button class="exbtn" onclick="exportXls()">📥 Excel enrichi</button>
         <button class="exbtn" onclick="exportCsv()">⬇️ CSV</button>
-        <button class="exbtn" onclick="exportProgress()">💾 JSON progression</button>
+        <button class="exbtn" onclick="exportProgress()">💾 JSON</button>
         <button class="exbtn" onclick="enrichResults=[];finalWb=null;renderEnrich('config')">↺ Recommencer</button>
       </div>
     </div>
@@ -757,24 +764,33 @@ function renderEnrich(step){
         </tr></thead>
         <tbody>
           ${enrichResults.map(r=>{
-            const filled=r.data?r.fn.filter(f=>r.data[f]&&r.data[f]!=='null').length:0;
-            const cls=filled===r.fn.length?'bok':filled>0?'bpart':'bno';
-            const lbl=filled===r.fn.length?'Complet':filled>0?`${filled}/${r.fn.length}`:'—';
+            const filled=r&&r.data?r.fn.filter(f=>r.data[f]&&r.data[f]!=='null').length:0;
+            const cls=r&&r.status==='ok'?(filled===r.fn.length?'bok':'bpart'):'bno';
             return`<tr>
-              <td class="tn">${r.company}</td>
-              ${selFields.map(f=>{const v=r.data?.[f],needed=r.fn.includes(f);return`<td>${!needed?'<span class="tf" style="opacity:.4">✓</span>':v&&v!=='null'?`<span class="tf">${v}</span>`:'<span class="te">—</span>'}</td>`;}).join('')}
-              <td><span class="badge ${cls}">${lbl}</span></td>
+              <td>${r?.company||'?'}</td>
+              ${selFields.map(f=>`<td>${r?.data?.[f]||'—'}</td>`).join('')}
+              <td><span class="${cls}">${cls==='bok'?'✓':cls==='bpart'?'~':'✗'}</span></td>
             </tr>`;
           }).join('')}
         </tbody>
       </table></div>
     </div>`;
+    return;
   }
 }
 
 function toggleSelField(id){if(selFields.includes(id)) selFields=selFields.filter(x=>x!==id);else selFields.push(id);renderEnrich('config');}
 function togglePause(){paused=!paused;const b=el('pauseBtn');if(b)b.textContent=paused?'▶️ Reprendre':'⏸ Pause';}
 function requestStop(){stopRequested=true;}
+
+// Reprendre l'enrichissement sur les lignes restantes (status=none)
+function resumeEnrich(){
+  if(processing)return;
+  // Réinitialiser uniquement les lignes non traitées
+  enrichResults=enrichResults.map(r=>(!r||r.status==='none')?null:r);
+  finalWb=null;
+  startEnrich();
+}
 
 // ── RUN ENRICH ───────────────────────────────────────────────
 async function startEnrich(){
