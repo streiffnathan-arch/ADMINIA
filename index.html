@@ -637,7 +637,7 @@ function renderEnrich(step){
   }
   if(!step){
     if(!wb) step='upload';
-    else if(finalWb || enrichResults.filter(r=>r&&r.status==='ok').length>0) step='done';
+    else if(enrichResults.length>0) step='done';
     else step='config';
   }
 
@@ -735,8 +735,9 @@ function renderEnrich(step){
   }
 
   if(step==='done'){
-    const ok=enrichResults.filter(r=>r&&r.status==='ok').length;
-    const pending=enrichResults.filter(r=>!r||r.status==='none').length;
+    // Compter par données réelles, pas seulement par status
+    const ok=enrichResults.filter(r=>r&&r.data&&Object.values(r.data).some(v=>v&&v!=='null')).length;
+    const pending=enrichResults.filter(r=>!r||(!r.data&&r.status!=='ok')||(r.status==='none'&&!(r.data&&Object.values(r.data).some(v=>v&&v!=='null')))).length;
     const total=enrichResults.length;
     c.innerHTML=`
     <div class="sec">
@@ -764,11 +765,12 @@ function renderEnrich(step){
         </tr></thead>
         <tbody>
           ${enrichResults.map(r=>{
+            const hasData=r&&r.data&&Object.values(r.data).some(v=>v&&v!=='null');
             const filled=r&&r.data?r.fn.filter(f=>r.data[f]&&r.data[f]!=='null').length:0;
-            const cls=r&&r.status==='ok'?(filled===r.fn.length?'bok':'bpart'):'bno';
+            const cls=hasData?(filled===r.fn.length?'bok':'bpart'):'bno';
             return`<tr>
               <td>${r?.company||'?'}</td>
-              ${selFields.map(f=>`<td>${r?.data?.[f]||'—'}</td>`).join('')}
+              ${selFields.map(f=>`<td>${r?.data?.[f]&&r.data[f]!=='null'?r.data[f]:'—'}</td>`).join('')}
               <td><span class="${cls}">${cls==='bok'?'✓':cls==='bpart'?'~':'✗'}</span></td>
             </tr>`;
           }).join('')}
@@ -783,11 +785,15 @@ function toggleSelField(id){if(selFields.includes(id)) selFields=selFields.filte
 function togglePause(){paused=!paused;const b=el('pauseBtn');if(b)b.textContent=paused?'▶️ Reprendre':'⏸ Pause';}
 function requestStop(){stopRequested=true;}
 
-// Reprendre l'enrichissement sur les lignes restantes (status=none)
+// Reprendre l'enrichissement sur les lignes sans données utiles
 function resumeEnrich(){
   if(processing)return;
-  // Réinitialiser uniquement les lignes non traitées
-  enrichResults=enrichResults.map(r=>(!r||r.status==='none')?null:r);
+  // Effacer seulement les lignes sans données réelles
+  enrichResults=enrichResults.map(r=>{
+    if(!r) return null;
+    const hasData=r.data&&Object.values(r.data).some(v=>v&&v!=='null');
+    return hasData ? r : null;
+  });
   finalWb=null;
   startEnrich();
 }
