@@ -1,16 +1,13 @@
-const API_URL = "TON_WORKER_URL";
+const API_URL = "https://shy-waterfall-8a1e.streiffnathan-432.workers.dev/";
 const MODEL = "claude-sonnet-4-20250514";
 
 const SPEED = 5;
-const DELAY = 800;
+const DELAY = 500;
 
 let rows = [];
-let headers = [];
 let results = [];
 
-// ─────────────────────────────
 // 📊 LOAD EXCEL
-// ─────────────────────────────
 document.getElementById("fileInput").addEventListener("change", e => {
   const file = e.target.files[0];
   const reader = new FileReader();
@@ -20,18 +17,14 @@ document.getElementById("fileInput").addEventListener("change", e => {
     const ws = wb.Sheets[wb.SheetNames[0]];
     const data = XLSX.utils.sheet_to_json(ws, {header:1});
 
-    headers = data[0];
     rows = data.slice(1);
-
     console.log("Loaded:", rows.length);
   };
 
   reader.readAsArrayBuffer(file);
 });
 
-// ─────────────────────────────
-// 🌐 SCRAPER WEBSITE
-// ─────────────────────────────
+// 🌐 SCRAPE SITE
 async function scrapeWebsite(domain){
   try{
     const res = await fetch("https://" + domain);
@@ -49,97 +42,97 @@ async function scrapeWebsite(domain){
   }
 }
 
-// ─────────────────────────────
-// 🤖 API CALL
-// ─────────────────────────────
-async function callAPI(prompt){
-  const res = await fetch(API_URL,{
-    method:"POST",
-    headers:{"Content-Type":"application/json"},
-    body:JSON.stringify({
-      model:MODEL,
-      max_tokens:2000,
-      tools:[{type:"web_search_20250305",name:"web_search"}],
-      messages:[{role:"user",content:prompt}]
-    })
-  });
-
-  const data = await res.json();
-  return data.content[0].text;
+// 📍 ADRESSE SIMPLE
+async function searchAddress(name){
+  try{
+    const res = await fetch(`https://nominatim.openstreetmap.org/search?q=${encodeURIComponent(name)}&format=json`);
+    const data = await res.json();
+    if(data.length){
+      return data[0].display_name;
+    }
+  }catch{}
+  return null;
 }
 
-// ─────────────────────────────
-// 🧠 PROMPT
-// ─────────────────────────────
-function buildPrompt(batch){
-  return `
-Find contact data for these Swiss companies.
-
-Use:
-- Google Maps
-- local.ch
-- moneyhouse.ch
-- zefix.ch
-- LinkedIn
-
-Return MAXIMUM data.
-
-Companies:
-${batch.map((c,i)=>`"${c[0]}"`).join("\n")}
-
-Return JSON:
-[
-  {"idx":0,"website":null,"phone":null,"email":null,"address":null}
-]
-`;
+// 🔧 SAFE JSON PARSE
+function safeParse(text){
+  try{
+    const start = text.indexOf('[');
+    const end = text.lastIndexOf(']');
+    if(start !== -1 && end !== -1){
+      return JSON.parse(text.slice(start, end+1));
+    }
+  }catch{}
+  return null;
 }
 
-// ─────────────────────────────
+// 🤖 CLAUDE BACKUP
+async function callAPI(name){
+  try{
+    const res = await fetch(API_URL,{
+      method:"POST",
+      headers:{"Content-Type":"application/json"},
+      body:JSON.stringify({
+        model:MODEL,
+        max_tokens:500,
+        tools:[{type:"web_search_20250305",name:"web_search"}],
+        messages:[{
+          role:"user",
+          content:`Find website, phone, email and address for ${name} Switzerland. Return JSON array.`
+        }]
+      })
+    });
+
+    const data = await res.json();
+    const raw = data?.content?.[0]?.text || "";
+    return safeParse(raw);
+  }catch(e){
+    console.error("API error:", e);
+    return null;
+  }
+}
+
 // ⚡ WORKER
-// ─────────────────────────────
 async function worker(queue){
   while(queue.length){
-    const batch = queue.splice(0,2);
+    const row = queue.shift();
+    const name = row[0];
 
-    const prompt = buildPrompt(batch);
+    let data = {
+      name,
+      website:null,
+      phone:null,
+      email:null,
+      address:null
+    };
 
-    let res;
-    try{
-      res = await callAPI(prompt);
-    }catch{
-      continue;
-    }
+    // 1. Adresse rapide
+    data.address = await searchAddress(name);
 
-    let parsed = [];
-    try{
-      parsed = JSON.parse(res);
-    }catch{}
+    // 2. Guess site
+    const domain = name.toLowerCase().replace(/\s/g,'') + ".ch";
 
-    for(let i=0;i<batch.length;i++){
-      let data = parsed[i] || {};
+    const scraped = await scrapeWebsite(domain);
+    data.website = domain;
+    data.email = scraped.email;
+    data.phone = scraped.phone;
 
-      // 🔥 scraping site
-      if(data.website){
-        const scraped = await scrapeWebsite(data.website);
-        data.email = data.email || scraped.email;
-        data.phone = data.phone || scraped.phone;
+    // 3. Backup Claude
+    if(!data.email && !data.phone){
+      const ai = await callAPI(name);
+      if(ai && ai[0]){
+        data = {...data, ...ai[0]};
       }
-
-      results.push({
-        name: batch[i][0],
-        ...data
-      });
-
-      console.log("✔", batch[i][0], data);
     }
+
+    results.push(data);
+    console.log("✔", data);
 
     await new Promise(r=>setTimeout(r, DELAY));
   }
 }
 
-// ─────────────────────────────
 // 🚀 START
-// ─────────────────────────────
 async function start(){
   const queue = [...rows];
 
@@ -153,13 +146,11 @@ async function start(){
   exportExcel();
 }
 
-// ─────────────────────────────
 // 📥 EXPORT
-// ─────────────────────────────
 function exportExcel(){
   const ws = XLSX.utils.json_to_sheet(results);
   const wb = XLSX.utils.book_new();
   XLSX.utils.book_append_sheet(wb, ws, "Results");
 
-  XLSX.writeFile(wb, "enriched.xlsx");
+  XLSX.writeFile(wb, "results.xlsx");
 }
