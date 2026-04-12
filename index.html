@@ -3,237 +3,92 @@
 <html lang="fr">
 <head>
 <meta charset="UTF-8"/>
-<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover"/>
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover"/>
 <meta name="apple-mobile-web-app-capable" content="yes"/>
-<meta name="apple-mobile-web-app-title" content="AdminAI"/>
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent"/>
 <title>AdminAI</title>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
 <style>
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&family=JetBrains+Mono:wght@400;500&display=swap');
 *,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
-:root{
-  --bg:#0d1117;--sur:#161b22;--sur2:#21262d;--bdr:#30363d;
-  --acc:#f0a830;--ok:#3fb950;--bad:#f85149;
-  --txt:#e6edf3;--txt2:#8b949e;--txt3:#484f58;
-  --r:8px;--font:'DM Sans',system-ui,sans-serif
-}
-@import url('https://fonts.googleapis.com/css2?family=DM+Sans:wght@300;400;500;600&family=DM+Mono:wght@400;500&display=swap');
-html,body{height:100%;background:var(--bg);font-family:var(--font);color:var(--txt);font-size:14px}
-
-/* ── LAYOUT ── */
-.app{max-width:960px;margin:0 auto;padding:20px 16px;display:flex;flex-direction:column;gap:16px}
-
-/* ── HEADER ── */
-.hdr{display:flex;align-items:center;gap:12px;padding-bottom:16px;border-bottom:1px solid var(–bdr)}
-.logo{width:36px;height:36px;background:var(–acc);border-radius:9px;display:grid;place-items:center;font-family:‘DM Mono’;font-weight:700;font-size:14px;color:#0d1117;flex-shrink:0}
-.hdr-info h1{font-size:18px;font-weight:600;letter-spacing:-.3px}
-.hdr-info p{font-size:11px;color:var(–txt3);font-family:‘DM Mono’;margin-top:1px}
-
-/* ── CARDS ── */
-.card{background:var(–sur);border:1px solid var(–bdr);border-radius:var(–r);padding:16px}
-.card-title{font-size:12px;font-weight:600;color:var(–txt2);text-transform:uppercase;letter-spacing:.8px;margin-bottom:12px;font-family:‘DM Mono’}
-
-/* ── FILE DROP ── */
-.drop-zone{
-border:2px dashed var(–bdr);border-radius:var(–r);padding:28px;text-align:center;
-cursor:pointer;transition:all .15s;position:relative;background:var(–sur2)
-}
-.drop-zone:hover{border-color:var(–acc);background:rgba(240,168,48,.04)}
-.drop-zone input{position:absolute;inset:0;opacity:0;cursor:pointer}
-.drop-ico{font-size:28px;margin-bottom:8px}
-.drop-txt{font-weight:500;color:var(–txt)}
-.drop-sub{font-size:12px;color:var(–txt3);margin-top:4px;font-family:‘DM Mono’}
-
-/* ── STATUS ── */
-#status{
-font-size:13px;color:var(–txt2);font-family:‘DM Mono’;
-padding:10px 14px;background:var(–sur2);border-radius:var(–r);
-border:1px solid var(–bdr);min-height:38px;line-height:1.5
-}
-
-/* ── PROGRESS ── */
-.prog-wrap{display:flex;align-items:center;gap:10px}
-.pbar{flex:1;height:6px;background:var(–sur2);border-radius:3px;overflow:hidden}
-.pfill{height:100%;background:var(–acc);border-radius:3px;width:0%;transition:width .3s}
-#progress{font-size:12px;color:var(–txt2);font-family:‘DM Mono’;white-space:nowrap}
-
-/* ── BUTTONS ── */
-.btns{display:flex;gap:8px;flex-wrap:wrap}
-button{
-padding:9px 16px;border-radius:var(–r);border:none;cursor:pointer;
-font-family:var(–font);font-size:13px;font-weight:500;transition:all .15s
-}
-.btn-primary{background:var(–acc);color:#0d1117}
-.btn-primary:hover{background:#e09820}
-.btn-primary:disabled{background:var(–bdr);color:var(–txt3);cursor:not-allowed}
-.btn-secondary{background:var(–sur2);color:var(–txt);border:1px solid var(–bdr)}
-.btn-secondary:hover{background:var(–bdr)}
-.btn-danger{background:rgba(248,81,73,.15);color:var(–bad);border:1px solid rgba(248,81,73,.3)}
-.btn-danger:hover{background:rgba(248,81,73,.25)}
-
-/* ── TABLE ── */
-.tbl-wrap{overflow-x:auto;margin-top:4px;max-height:420px;overflow-y:auto}
+:root{--bg:#0f1117;--s1:#171c27;--s2:#1e2535;--bd:#2a3347;--acc:#f0a830;--ok:#3dd68c;--no:#e05555;--t1:#e8eaf0;--t2:#8892a4;--t3:#4a5568;--r:10px}
+html,body{min-height:100%;background:var(--bg);font-family:'Inter',sans-serif;color:var(--t1);font-size:14px}
+.wrap{max-width:860px;margin:0 auto;padding:20px 16px 60px;display:flex;flex-direction:column;gap:14px}
+.hdr{display:flex;align-items:center;gap:11px;padding-bottom:14px;border-bottom:1px solid var(--bd)}
+.logo{width:34px;height:34px;background:var(--acc);border-radius:8px;display:grid;place-items:center;font-family:'JetBrains Mono';font-weight:700;font-size:13px;color:#0f1117;flex-shrink:0}
+.hdr h1{font-size:17px;font-weight:600}.hdr p{font-size:11px;color:var(--t3);font-family:'JetBrains Mono'}
+.card{background:var(--s1);border:1px solid var(--bd);border-radius:var(--r);padding:16px}
+.ctitle{font-size:11px;font-weight:600;color:var(--t2);text-transform:uppercase;letter-spacing:.7px;margin-bottom:12px;font-family:'JetBrains Mono'}
+.file-label{display:flex;flex-direction:column;align-items:center;gap:8px;padding:30px 16px;border:2px dashed var(--bd);border-radius:var(--r);cursor:pointer;background:var(--s2);transition:border-color .2s;text-align:center;-webkit-tap-highlight-color:transparent}
+.file-label:hover,.file-label:active{border-color:var(--acc)}
+.file-label input[type=file]{display:none}
+.file-ico{font-size:28px}.file-txt{font-weight:500;font-size:14px}.file-sub{font-size:11px;color:var(--t3);font-family:'JetBrains Mono'}
+#status{font-size:13px;color:var(--t2);font-family:'JetBrains Mono';padding:11px 14px;background:var(--s2);border-radius:var(--r);border:1px solid var(--bd);min-height:40px;line-height:1.6;word-break:break-word}
+.btns{display:flex;gap:8px;flex-wrap:wrap;align-items:center}
+button{padding:9px 18px;border-radius:var(--r);border:none;cursor:pointer;font-family:'Inter';font-size:13px;font-weight:500;transition:.15s;-webkit-tap-highlight-color:transparent}
+.bp{background:var(--acc);color:#0f1117}.bp:hover{opacity:.88}.bp:disabled{background:var(--bd);color:var(--t3);cursor:not-allowed}
+.bs{background:var(--s2);color:var(--t1);border:1px solid var(--bd)}.bs:hover{background:var(--bd)}.bs:disabled{opacity:.4;cursor:not-allowed}
+.bx{background:rgba(224,85,85,.15);color:var(--no);border:1px solid rgba(224,85,85,.3)}.bx:hover{background:rgba(224,85,85,.25)}
+.prow{display:flex;align-items:center;gap:10px;margin-top:12px}
+.pbar{flex:1;height:5px;background:var(--s2);border-radius:3px;overflow:hidden}
+.pfill{height:100%;background:var(--acc);border-radius:3px;width:0%;transition:width .4s}
+#prog{font-size:12px;color:var(--t2);font-family:'JetBrains Mono';white-space:nowrap;min-width:80px}
+.stats{display:grid;grid-template-columns:repeat(3,1fr);gap:10px}
+.stat{background:var(--s2);border:1px solid var(--bd);border-radius:var(--r);padding:12px 14px}
+.sv{font-size:24px;font-weight:600;font-family:'JetBrains Mono'}.sl{font-size:11px;color:var(--t3);margin-top:2px}
+.stat.a .sv{color:var(--acc)}.stat.g .sv{color:var(--ok)}.stat.r .sv{color:var(--no)}
+.tbl-wrap{overflow-x:auto;max-height:400px;overflow-y:auto;margin-top:4px}
 table{width:100%;border-collapse:collapse;font-size:13px}
 thead{position:sticky;top:0;z-index:2}
-th{background:var(–sur2);color:var(–txt2);font-weight:500;font-family:‘DM Mono’;font-size:11px;
-text-transform:uppercase;letter-spacing:.5px;padding:8px 12px;text-align:left;
-border-bottom:1px solid var(–bdr)}
-td{padding:8px 12px;border-bottom:1px solid rgba(48,54,61,.5);vertical-align:top;max-width:200px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
-tr:last-child td{border-bottom:none}
+th{background:var(--s2);color:var(--t2);font-weight:500;font-family:'JetBrains Mono';font-size:10px;text-transform:uppercase;letter-spacing:.6px;padding:8px 12px;text-align:left;border-bottom:1px solid var(--bd)}
+td{padding:8px 12px;border-bottom:1px solid rgba(42,51,71,.5);max-width:180px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;vertical-align:middle}
 tr:hover td{background:rgba(255,255,255,.02)}
-.ok-cell{color:var(–ok);font-weight:600}
-.bad-cell{color:var(–txt3)}
-
-/* ── STATS ROW ── */
-.stats{display:flex;gap:12px;flex-wrap:wrap}
-.stat{background:var(–sur2);border:1px solid var(–bdr);border-radius:var(–r);padding:10px 16px;flex:1;min-width:100px}
-.stat-val{font-size:22px;font-weight:600;font-family:‘DM Mono’}
-.stat-lbl{font-size:11px;color:var(–txt3);margin-top:2px}
-.stat.ok .stat-val{color:var(–ok)}
-.stat.acc .stat-val{color:var(–acc)}
-.stat.bad .stat-val{color:var(–bad)}
+.ok-b{color:var(--ok);font-weight:600}.no-b{color:var(--t3)}
 </style>
-
 </head>
 <body>
-<div class="app">
-
-  <!-- HEADER -->
-
+<div class="wrap">
   <div class="hdr">
     <div class="logo">A</div>
-    <div class="hdr-info">
-      <h1>AdminAI</h1>
-      <p>Enrichissement automatique · Claude API</p>
-    </div>
+    <div><h1>AdminAI</h1><p>Enrichissement B2B · Claude API · Swiss data</p></div>
   </div>
-
-  <!-- STEP 1 : UPLOAD -->
-
   <div class="card">
-    <div class="card-title">1 · Fichier Excel</div>
-    <div class="drop-zone" onclick="document.getElementById('fileInput').click()">
+    <div class="ctitle">1 · Fichier Excel</div>
+    <label class="file-label">
       <input type="file" id="fileInput" accept=".xlsx,.xls,.csv"/>
-      <div class="drop-ico">📊</div>
-      <div class="drop-txt">Sélectionne ton fichier Excel</div>
-      <div class="drop-sub">.xlsx · .xls · .csv</div>
-    </div>
+      <div class="file-ico">📊</div>
+      <div class="file-txt">Appuie pour sélectionner ton fichier</div>
+      <div class="file-sub">.xlsx · .xls · .csv</div>
+    </label>
   </div>
-
-  <!-- STATUS -->
-
   <div id="status">En attente d'un fichier…</div>
-
-  <!-- STEP 2 : CONTRÔLES -->
-
   <div class="card">
-    <div class="card-title">2 · Lancement</div>
+    <div class="ctitle">2 · Lancement</div>
     <div class="btns">
-      <button class="btn-primary" id="btnLancer" onclick="lancer()" disabled>
-        🔍 Enrichir
-      </button>
-      <button class="btn-danger" onclick="stopEnrich()">⛔ Stop</button>
-      <button class="btn-secondary" id="exportBtn" onclick="exportExcel()" disabled>
-        📥 Exporter Excel
-      </button>
+      <button class="bp" id="btnStart" disabled>🔍 Enrichir</button>
+      <button class="bx" id="btnStop">⛔ Stop</button>
+      <button class="bs" id="btnExport" disabled>📥 Exporter Excel</button>
     </div>
-    <div style="margin-top:12px">
-      <div class="prog-wrap">
-        <div class="pbar"><div class="pfill" id="pfill"></div></div>
-        <span id="progress" style="font-size:12px;color:var(--txt2);font-family:'DM Mono'">—</span>
-      </div>
+    <div class="prow">
+      <div class="pbar"><div class="pfill" id="pfill"></div></div>
+      <span id="prog">—</span>
     </div>
   </div>
-
-  <!-- STATS -->
-
   <div class="stats">
-    <div class="stat acc">
-      <div class="stat-val" id="statTotal">0</div>
-      <div class="stat-lbl">Total lignes</div>
-    </div>
-    <div class="stat ok">
-      <div class="stat-val" id="statOk">0</div>
-      <div class="stat-lbl">Enrichies</div>
-    </div>
-    <div class="stat bad">
-      <div class="stat-val" id="statEmpty">0</div>
-      <div class="stat-lbl">Vides</div>
-    </div>
+    <div class="stat a"><div class="sv" id="sTotal">0</div><div class="sl">Total</div></div>
+    <div class="stat g"><div class="sv" id="sOk">0</div><div class="sl">Enrichies ✓</div></div>
+    <div class="stat r"><div class="sv" id="sEmpty">0</div><div class="sl">Vides ✗</div></div>
   </div>
-
-  <!-- RESULTS TABLE -->
-
   <div class="card">
-    <div class="card-title">Résultats en temps réel</div>
+    <div class="ctitle">Résultats en temps réel</div>
     <div class="tbl-wrap">
       <table>
-        <thead>
-          <tr>
-            <th>Entreprise</th>
-            <th>Site web</th>
-            <th>Téléphone</th>
-            <th>Email</th>
-            <th>Adresse</th>
-            <th>✓</th>
-          </tr>
-        </thead>
-        <tbody id="tableBody"></tbody>
+        <thead><tr><th>Entreprise</th><th>Site web</th><th>Téléphone</th><th>Email</th><th>Adresse</th><th>✓</th></tr></thead>
+        <tbody id="tbody"></tbody>
       </table>
     </div>
   </div>
-
 </div>
-
 <script src="app.js"></script>
-
-<script>
-// Mise à jour stats en temps réel
-const _origAdd = window.addTableRow;
-function patchStats() {
-  const orig = window.addTableRow;
-  if (!orig) { setTimeout(patchStats, 100); return; }
-  window.addTableRow = function(r) {
-    orig(r);
-    const rows = document.querySelectorAll('#tableBody tr');
-    const ok = document.querySelectorAll('#tableBody .ok-cell').length;
-    document.getElementById('statTotal').textContent = rows.length;
-    document.getElementById('statOk').textContent = ok;
-    document.getElementById('statEmpty').textContent = rows.length - ok;
-    // Progress bar
-    const total = window.excelRows?.length || 1;
-    document.getElementById('pfill').style.width = (rows.length / total * 100) + '%';
-  };
-}
-patchStats();
-
-// Override addTableRow dans app.js pour utiliser les classes CSS
-window.addEventListener('load', () => {
-  const orig = window.addTableRow;
-  window.addTableRow = function(r) {
-    const tableBody = document.getElementById('tableBody');
-    if (!tableBody) return;
-    const tr = document.createElement('tr');
-    const hasData = r && (r.website || r.phone || r.email || r.address);
-    tr.innerHTML = `
-      <td title="${r?.company||''}">${r?.company || '?'}</td>
-      <td title="${r?.website||''}">${r?.website || '<span style="color:var(--txt3)">—</span>'}</td>
-      <td>${r?.phone   || '<span style="color:var(--txt3)">—</span>'}</td>
-      <td title="${r?.email||''}">${r?.email   || '<span style="color:var(--txt3)">—</span>'}</td>
-      <td title="${r?.address||''}">${r?.address || '<span style="color:var(--txt3)">—</span>'}</td>
-      <td class="${hasData ? 'ok-cell' : 'bad-cell'}">${hasData ? '✓' : '✗'}</td>
-    `;
-    tableBody.appendChild(tr);
-
-    const allRows = tableBody.querySelectorAll('tr');
-    const ok = tableBody.querySelectorAll('.ok-cell').length;
-    document.getElementById('statTotal').textContent = allRows.length;
-    document.getElementById('statOk').textContent = ok;
-    document.getElementById('statEmpty').textContent = allRows.length - ok;
-    const total = window.excelRows?.length || 1;
-    document.getElementById('pfill').style.width = (allRows.length / total * 100) + '%';
-  };
-});
-</script>
-
 </body>
 </html>
