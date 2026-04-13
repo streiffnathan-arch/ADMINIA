@@ -9,34 +9,18 @@
 <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
 <style>
 *{box-sizing:border-box;margin:0;padding:0}
-body{background:#0f1117;color:#e8eaf0;font-family:system-ui,sans-serif;font-size:14px;padding:16px;min-height:100vh}
+body{background:#0f1117;color:#e8eaf0;font-family:system-ui,sans-serif;font-size:14px;padding:16px}
 h1{color:#f0a830;font-size:20px;margin-bottom:2px}
 .sub{color:#4a5568;font-size:11px;margin-bottom:16px}
 .card{background:#171c27;border:1px solid #2a3347;border-radius:10px;padding:16px;margin-bottom:12px}
 .card h2{font-size:11px;font-weight:600;color:#8892a4;text-transform:uppercase;letter-spacing:.6px;margin-bottom:12px}
-#pickBtn{
-  width:100%;padding:24px 16px;border:2px dashed #2a3347;border-radius:8px;
-  background:#1e2535;color:#e8eaf0;font-size:14px;font-weight:500;
-  cursor:pointer;display:flex;flex-direction:column;align-items:center;gap:6px;
-  border-width:2px;border-style:dashed;
-}
-#pickBtn:active{border-color:#f0a830}
-#fileInput{width:0.1px;height:0.1px;opacity:0;overflow:hidden;position:absolute;z-index:-1}
-#fileStatus{margin-top:10px;font-size:13px;color:#3dd68c;text-align:center;min-height:20px}
-#log{
-  background:#0a0d14;border:1px solid #2a3347;border-radius:8px;padding:12px;
-  font-family:monospace;font-size:12px;color:#8892a4;line-height:1.7;
-  min-height:80px;max-height:180px;overflow-y:auto;
-  white-space:pre-wrap;word-break:break-word;margin-bottom:12px
-}
-.btns{display:flex;gap:8px;flex-wrap:wrap;margin-bottom:12px}
-.btn{padding:11px 20px;border-radius:8px;border:none;cursor:pointer;font-size:14px;font-weight:600}
+#log{background:#0a0d14;border:1px solid #2a3347;border-radius:8px;padding:12px;font-family:monospace;font-size:12px;color:#8892a4;line-height:1.7;min-height:80px;max-height:200px;overflow-y:auto;white-space:pre-wrap;word-break:break-word;margin-bottom:12px}
+.btn{display:inline-block;padding:12px 22px;border-radius:8px;border:none;cursor:pointer;font-size:14px;font-weight:600;margin:4px}
 .by{background:#f0a830;color:#0f1117}.by:disabled{background:#2a3347;color:#4a5568;cursor:not-allowed}
 .br{background:rgba(224,85,85,.15);color:#e05555;border:1px solid rgba(224,85,85,.4)}
 .bg{background:rgba(61,214,140,.15);color:#3dd68c;border:1px solid rgba(61,214,140,.4)}.bg:disabled{opacity:.35;cursor:not-allowed}
-.pbar-bg{background:#1e2535;border-radius:3px;height:5px;overflow:hidden;margin-bottom:8px}
+.pbar-bg{background:#1e2535;border-radius:3px;height:5px;overflow:hidden;margin:10px 0 6px}
 .pbar-fg{background:#f0a830;height:100%;width:0%;transition:width .35s;border-radius:3px}
-#progTxt{font-size:12px;color:#8892a4;font-family:monospace}
 .stats{display:grid;grid-template-columns:repeat(3,1fr);gap:8px;margin-bottom:12px}
 .stat{background:#1e2535;border:1px solid #2a3347;border-radius:8px;padding:10px;text-align:center}
 .stat .n{font-size:20px;font-weight:700;font-family:monospace}
@@ -47,38 +31,47 @@ table{width:100%;border-collapse:collapse;font-size:12px}
 thead{position:sticky;top:0;z-index:1}
 th{background:#1e2535;color:#8892a4;padding:7px 10px;text-align:left;font-size:10px;text-transform:uppercase;letter-spacing:.5px;border-bottom:1px solid #2a3347;white-space:nowrap}
 td{padding:7px 10px;border-bottom:1px solid #1a2030;max-width:150px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
-tr:hover td{background:rgba(255,255,255,.02)}
 .tok{color:#3dd68c;font-weight:700}.tno{color:#4a5568}
 </style>
 </head>
 <body>
 
 <h1>AdminAI</h1>
-<p class="sub">Enrichissement B2B · Claude API · Données suisses</p>
+<p class="sub">Enrichissement B2B · Claude API</p>
+
+<!-- FILE -->
 
 <div class="card">
   <h2>1 · Fichier Excel</h2>
-  <input type="file" id="fileInput" accept=".xlsx,.xls,.csv">
-  <button type="button" id="pickBtn">
-    <span style="font-size:28px">📊</span>
-    <span id="pickTxt">Appuie pour choisir ton fichier</span>
-    <span style="font-size:11px;color:#4a5568">.xlsx · .xls · .csv</span>
-  </button>
-  <div id="fileStatus"></div>
+  <!-- Direct input, no label wrapper, onclick on the div itself -->
+  <div id="dropzone" onclick="document.getElementById('fi').click()" style="
+    padding:28px;border:2px dashed #2a3347;border-radius:8px;
+    background:#1e2535;text-align:center;cursor:pointer;
+  ">
+    <div style="font-size:28px;margin-bottom:8px">📊</div>
+    <div id="dztxt" style="font-weight:500">Appuie ici pour choisir ton fichier</div>
+    <div style="font-size:11px;color:#4a5568;margin-top:4px">.xlsx · .xls · .csv</div>
+  </div>
+  <input type="file" id="fi" accept=".xlsx,.xls,.csv" style="display:none" onchange="loadFile(this)">
+  <div id="fstatus" style="margin-top:8px;font-size:13px;color:#3dd68c;min-height:18px"></div>
 </div>
 
-<div id="log">En attente d'un fichier…</div>
+<!-- LOG -->
+
+<div id="log">En attente…</div>
+
+<!-- CONTROLS -->
 
 <div class="card">
   <h2>2 · Enrichissement</h2>
-  <div class="btns">
-    <button class="btn by" id="btnEnrich" disabled>🔍 Enrichir</button>
-    <button class="btn br" id="btnStop">⛔ Stop</button>
-    <button class="btn bg" id="btnExport" disabled>📥 Exporter Excel</button>
-  </div>
+  <button class="btn by" id="btnE" disabled onclick="startEnrich()">🔍 Enrichir</button>
+  <button class="btn br"          onclick="stopEnrich()">⛔ Stop</button>
+  <button class="btn bg" id="btnX" disabled onclick="doExport()">📥 Exporter</button>
   <div class="pbar-bg"><div class="pbar-fg" id="pbar"></div></div>
-  <div id="progTxt">—</div>
+  <span id="prog" style="font-size:12px;color:#8892a4;font-family:monospace">—</span>
 </div>
+
+<!-- STATS -->
 
 <div class="stats">
   <div class="stat"><div class="n na" id="sT">0</div><div class="l">Total</div></div>
@@ -86,412 +79,288 @@ tr:hover td{background:rgba(255,255,255,.02)}
   <div class="stat"><div class="n nr" id="sE">0</div><div class="l">Vides</div></div>
 </div>
 
+<!-- TABLE -->
+
 <div class="card">
   <h2>Résultats</h2>
   <div class="tscroll">
     <table>
       <thead><tr>
-        <th>Entreprise</th><th>Site web</th><th>Téléphone</th>
-        <th>Email</th><th>Adresse</th><th>✓</th>
+        <th>Entreprise</th><th>Site</th><th>Tél</th><th>Email</th><th>Adresse</th><th>✓</th>
       </tr></thead>
-      <tbody id="tbody"></tbody>
+      <tbody id="tb"></tbody>
     </table>
   </div>
 </div>
 
 <script>
+// ── CONFIG ───────────────────────────────────
 const PROXY = 'https://shy-waterfall-8a1e.streiffnathan-432.workers.dev/';
-const MODEL  = 'claude-sonnet-4-20250514';
-const DELAY  = 2500;
+const MODEL = 'claude-sonnet-4-20250514';
+const DELAY = 2500;
 
-let workbook  = null;
-let allRows   = [];
-let headers   = [];
-let results   = [];
-let isRunning = false;
-let iName=-1,iSite=-1,iPhone=-1,iEmail=-1,iAddr=-1,iGeo=-1;
+// ── STATE ────────────────────────────────────
+let WB = null, ROWS = [], HDR = [], RES = [], running = false;
+let iN=-1,iW=-1,iP=-1,iM=-1,iA=-1,iG=-1;
 
-// ── DOM ─────────────────────────────────────
-const fileInput = document.getElementById('fileInput');
-const btnEnrich = document.getElementById('btnEnrich');
-const btnStop   = document.getElementById('btnStop');
-const btnExport = document.getElementById('btnExport');
-const logEl     = document.getElementById('log');
-const pbar      = document.getElementById('pbar');
-const progTxt   = document.getElementById('progTxt');
-const tbody     = document.getElementById('tbody');
+// ── HELPERS ──────────────────────────────────
+const sleep = ms => new Promise(r => setTimeout(r, ms));
+const $     = id => document.getElementById(id);
+const e     = s  => String(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+const t     = s  => String(s||'').trim();
 
-// ── FILE PICKER ──────────────────────────────
-// On iPad Safari, the button must directly trigger input.click()
-document.getElementById('pickBtn').addEventListener('click', function() {
-  fileInput.click();
-});
+function log(msg) {
+  $('log').textContent = msg;
+  console.log(msg);
+}
+function addLog(msg) {
+  $('log').textContent += '\n' + msg;
+  $('log').scrollTop = 9999;
+  console.log(msg);
+}
+function ui() {
+  const done = RES.length, tot = ROWS.length;
+  const ok   = RES.filter(r=>r.ok).length;
+  $('sT').textContent = tot;
+  $('sO').textContent = ok;
+  $('sE').textContent = done-ok;
+  $('pbar').style.width = tot ? (done/tot*100)+'%' : '0%';
+  $('prog').textContent = tot ? done+'/'+tot : '—';
+}
 
-// iOS Safari fix: use readAsBinaryString not readAsArrayBuffer
-fileInput.addEventListener('change', function() {
-  const file = this.files && this.files[0];
-  if (!file) return;
-
-  document.getElementById('pickTxt').textContent = file.name;
-  document.getElementById('fileStatus').textContent = 'Lecture…';
-  setLog('Lecture de "' + file.name + '"…');
-
-  const reader = new FileReader();
-
-  reader.onload = function(e) {
-    try {
-      // readAsBinaryString works reliably on iOS Safari
-      workbook = XLSX.read(e.target.result, { type: 'binary' });
-
-      const wsName = workbook.SheetNames[0];
-      const ws     = workbook.Sheets[wsName];
-      const data   = XLSX.utils.sheet_to_json(ws, { header: 1, defval: '' });
-
-      if (!data || data.length < 2) {
-        setLog('❌ Fichier vide ou illisible.');
-        document.getElementById('fileStatus').textContent = '❌ Fichier vide.';
-        return;
-      }
-
-      headers = (data[0] || []).map(h => String(h||'').trim());
-      allRows = data.slice(1).filter(r => r.some(c => String(c||'').trim()));
-
-      detectCols();
-
-      document.getElementById('fileStatus').textContent = '✅ ' + allRows.length + ' lignes chargées';
-
-      setLog(
-        '✅ "' + file.name + '" · ' + allRows.length + ' lignes\n' +
-        'En-têtes : ' + headers.slice(0,8).join(' | ') + (headers.length>8?' …':'')+'\n'+
-        'Nom=col'+(iName+1)+' Site=col'+(iSite+1)+' Tél=col'+(iPhone+1)+
-        ' Email=col'+(iEmail+1)+' Adresse=col'+(iAddr+1)+'\n'+
-        'Exemple : '+JSON.stringify(allRows[0]).slice(0,120)
-      );
-
-      btnEnrich.disabled = false;
-      btnExport.disabled = false;
-      document.getElementById('sT').textContent = allRows.length;
-
-    } catch(err) {
-      setLog('❌ Erreur : ' + err.message);
-      document.getElementById('fileStatus').textContent = '❌ Erreur.';
-      console.error(err);
-    }
-  };
-
-  reader.onerror = function() {
-    setLog('❌ Impossible de lire le fichier.');
-  };
-
-  // KEY FIX: readAsBinaryString instead of readAsArrayBuffer
-  reader.readAsBinaryString(file);
-});
-
-// ── COLUMN DETECTION ────────────────────────
-function findCol(...keys) {
-  return headers.findIndex(h =>
-    keys.some(k => String(h||'').toLowerCase().normalize('NFD')
-      .replace(/[\u0300-\u036f]/g,'').includes(k))
+// ── COLUMN DETECTION ─────────────────────────
+function fc(...kw) {
+  return HDR.findIndex(h =>
+    kw.some(k => t(h).toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g,'').includes(k))
   );
 }
 function detectCols() {
-  iName  = findCol('nom','name','entreprise','company','client','raison','societe');
-  iSite  = findCol('site','web','url','homepage','internet');
-  iPhone = findCol('tel','phone','telephone','mobile','gsm','fax');
-  iEmail = findCol('email','mail','courriel');
-  iAddr  = findCol('adresse','address','rue','street','localit');
-  iGeo   = findCol('ville','city','canton','npa','zip','hq','headquarter','pays','country','location');
-  if (iName < 0) iName = 0;
+  iN = fc('nom','name','entreprise','company','client','raison','societe'); if(iN<0)iN=0;
+  iW = fc('site','web','url','homepage');
+  iP = fc('tel','phone','telephone','mobile','gsm','fax');
+  iM = fc('email','mail','courriel');
+  iA = fc('adresse','address','rue','street','localit');
+  iG = fc('ville','city','canton','npa','zip','hq','headquarter','pays','country','location');
 }
 
-// ── CLEANERS ────────────────────────────────
-const cSite = v => {
-  if (!v) return null;
-  let s = String(v).trim().replace(/^https?:\/\//i,'').replace(/^www\./i,'').replace(/\/+$/,'').toLowerCase();
-  return s.includes('.') && s.length > 3 ? s : null;
-};
-const cPhone = v => {
-  if (!v) return null;
-  const s = String(v).trim();
-  return s.replace(/\D/g,'').length >= 7 ? s : null;
-};
-const cEmail = v => {
-  if (!v) return null;
-  const m = String(v).match(/[a-zA-Z0-9._%+\-]+@[a-zA-Z0-9.\-]+\.[a-zA-Z]{2,}/);
-  if (!m) return null;
-  const e = m[0].toLowerCase();
-  return /noreply|no-reply|example\.com|test@/.test(e) ? null : e;
-};
-const cAddr = v => {
-  if (!v) return null;
-  const s = String(v).trim();
-  return s.length > 8 ? s : null;
-};
+// ── FILE LOADING ─────────────────────────────
+async function loadFile(input) {
+  const file = input && input.files && input.files[0];
+  if (!file) { log('Aucun fichier.'); return; }
 
-// ── LOG ─────────────────────────────────────
-function setLog(msg) {
-  logEl.textContent = msg;
-}
-function addLog(msg) {
-  logEl.textContent += '\n' + msg;
-  logEl.scrollTop = logEl.scrollHeight;
-}
-function updateUI() {
-  const done  = results.length;
-  const total = allRows.length;
-  const ok    = results.filter(r => r.ok).length;
-  document.getElementById('sT').textContent = total;
-  document.getElementById('sO').textContent = ok;
-  document.getElementById('sE').textContent = done - ok;
-  pbar.style.width = total ? (done/total*100)+'%' : '0%';
-  progTxt.textContent = total ? done+'/'+total : '—';
-  document.title = isRunning ? '⏳ '+done+'/'+total+' — AdminAI' : 'AdminAI';
+  $('dztxt').textContent = '📂 ' + file.name;
+  $('fstatus').textContent = 'Lecture…';
+  log('Lecture de "' + file.name + '"…');
+
+  try {
+    // Method 1: file.arrayBuffer() — modern API, works on iOS 14+
+    let data;
+    if (file.arrayBuffer) {
+      const buf = await file.arrayBuffer();
+      data = new Uint8Array(buf);
+      WB = XLSX.read(data, { type: 'array' });
+    } else {
+      // Method 2: FileReader fallback for older iOS
+      WB = await new Promise((resolve, reject) => {
+        const fr = new FileReader();
+        fr.onload  = ev => resolve(XLSX.read(ev.target.result, { type: 'binary' }));
+        fr.onerror = reject;
+        fr.readAsBinaryString(file);
+      });
+    }
+
+    const ws   = WB.Sheets[WB.SheetNames[0]];
+    const rows = XLSX.utils.sheet_to_json(ws, { header:1, defval:'' });
+
+    if (!rows || rows.length < 2) {
+      log('❌ Fichier vide ou illisible.');
+      $('fstatus').textContent = '❌ Fichier vide.';
+      return;
+    }
+
+    HDR  = (rows[0]||[]).map(h => t(h));
+    ROWS = rows.slice(1).filter(r => Array.isArray(r) && r.some(c => t(c)));
+    detectCols();
+
+    $('fstatus').textContent = '✅ ' + ROWS.length + ' lignes chargées';
+    log(
+      '✅ "' + file.name + '" · ' + ROWS.length + ' lignes · ' + HDR.length + ' colonnes\n'+
+      'En-têtes : ' + HDR.slice(0,6).join(' | ') + (HDR.length>6?' …':'')+'\n'+
+      'Col nom='+iN+' site='+iW+' tél='+iP+' email='+iM+' adresse='+iA+'\n'+
+      'Ligne 1 : ' + JSON.stringify(ROWS[0]).slice(0,150)
+    );
+
+    $('btnE').disabled = false;
+    $('btnX').disabled = false;
+    $('sT').textContent = ROWS.length;
+
+  } catch(err) {
+    log('❌ Erreur : ' + err.message);
+    $('fstatus').textContent = '❌ Erreur : ' + err.message;
+    console.error(err);
+  }
 }
 
-// ── CLAUDE API ───────────────────────────────
+// ── CLEANERS ─────────────────────────────────
+const cW = v => { if(!v)return null; let s=t(v).replace(/^https?:\/\//i,'').replace(/^www\./i,'').replace(/\/+$/,'').toLowerCase(); return s.includes('.')&&s.length>3?s:null; };
+const cP = v => { if(!v)return null; const s=t(v); return s.replace(/\D/g,'').length>=7?s:null; };
+const cM = v => { if(!v)return null; const m=t(v).match(/[a-zA-Z0-9._%+\-]+@[a-zA-Z0-9.\-]+\.[a-zA-Z]{2,}/); if(!m)return null; const em=m[0].toLowerCase(); return/noreply|no-reply|example\.com|test@/.test(em)?null:em; };
+const cA = v => { if(!v)return null; const s=t(v); return s.length>8?s:null; };
+
+// ── CLAUDE ───────────────────────────────────
 function extractText(content) {
-  if (!Array.isArray(content)) return String(content||'');
-  return content.filter(b => b.type==='text').map(b => b.text||'').join('\n');
+  if (!Array.isArray(content)) return t(content);
+  return content.filter(b=>b.type==='text').map(b=>b.text||'').join('\n');
 }
 function parseJSON(raw) {
-  try {
-    const s=raw.indexOf('['),e=raw.lastIndexOf(']');
-    if(s>=0&&e>s){const a=JSON.parse(raw.slice(s,e+1));if(Array.isArray(a)&&a[0])return a[0];}
-  } catch {}
-  try {
-    const s=raw.indexOf('{'),e=raw.lastIndexOf('}');
-    if(s>=0&&e>s)return JSON.parse(raw.slice(s,e+1));
-  } catch {}
+  try { const s=raw.indexOf('['),e=raw.lastIndexOf(']'); if(s>=0&&e>s){const a=JSON.parse(raw.slice(s,e+1));if(Array.isArray(a)&&a[0])return a[0];} } catch {}
+  try { const s=raw.indexOf('{'),e=raw.lastIndexOf('}'); if(s>=0&&e>s)return JSON.parse(raw.slice(s,e+1)); } catch {}
   return null;
 }
 
-async function askClaude(company, geo, missing, retry) {
-  const loc = geo || 'Switzerland';
-  const retryHint = retry
-    ? 'RETRY — previous search found nothing.\n'+
-      'Try: moneyhouse.ch · zefix.ch · Google Maps · LinkedIn · FINMA list\n'
-    : '';
-
+async function ask(company, geo, missing, retry) {
+  const loc = geo||'Switzerland';
   const prompt =
-    'Find contact data for this Swiss company.\n\n'+
-    'COMPANY: "'+company+'"\n'+
-    'LOCATION: '+loc+'\n'+
-    'NEED: '+missing.join(', ')+'\n\n'+
-    retryHint+
-    'SEARCH:\n'+
-    '1. "'+company+' '+loc+' contact website"\n'+
-    '2. Visit their /contact or /impressum page\n'+
-    '3. moneyhouse.ch — always has Swiss address\n'+
-    '4. zefix.ch — Swiss register, always has address\n'+
-    '5. local.ch — phone numbers\n\n'+
-    'RULES:\n'+
-    '- website: domain only, no https:// (e.g. "company.ch")\n'+
-    '- phone: Swiss format (e.g. "+41 22 310 00 00")\n'+
-    '- email: real only, never invent\n'+
-    '- address: full with 4-digit code (e.g. "Rue du Rhône 14, 1204 Genève")\n'+
-    '- null if not found\n\n'+
-    'Return ONLY this JSON:\n'+
-    '[{"website":null,"phone":null,"email":null,"address":null}]';
+    'Find contact data for this company.\n'+
+    'COMPANY: "'+company+'"\nLOCATION: '+loc+'\nNEED: '+missing.join(', ')+'\n\n'+
+    (retry?'RETRY — try moneyhouse.ch, zefix.ch, Google Maps, LinkedIn, FINMA\n\n':'')+
+    'Search the web, then return ONLY:\n'+
+    '[{"website":null,"phone":null,"email":null,"address":null}]\n\n'+
+    'Rules: website=domain only (no https://), phone=Swiss format, email=real only, address=with 4-digit code, null if not found.';
 
   const res = await fetch(PROXY, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json', 'anthropic-version': '2023-06-01' },
+    method:'POST',
+    headers:{'Content-Type':'application/json','anthropic-version':'2023-06-01'},
     body: JSON.stringify({
-      model: MODEL,
-      max_tokens: 1500,
-      tools: [{ type: 'web_search_20250305', name: 'web_search' }],
-      messages: [{ role: 'user', content: prompt }]
+      model: MODEL, max_tokens: 1500,
+      tools: [{type:'web_search_20250305',name:'web_search'}],
+      messages: [{role:'user',content:prompt}]
     })
   });
-
-  if (!res.ok) {
-    const t = await res.text();
-    throw new Error('HTTP '+res.status+': '+t.slice(0,200));
-  }
-  const data = await res.json();
-  if (data.error) throw new Error(data.error.message || JSON.stringify(data.error));
-  return parseJSON(extractText(data.content));
+  if (!res.ok) { const tx=await res.text(); throw new Error('HTTP '+res.status+': '+tx.slice(0,200)); }
+  const d = await res.json();
+  if (d.error) throw new Error(d.error.message||JSON.stringify(d.error));
+  return parseJSON(extractText(d.content));
 }
 
 // ── ENRICH ONE ───────────────────────────────
 async function enrichOne(row) {
-  const company = String(row[iName]||'').trim();
+  const company = t(row[iN]);
   if (!company) return null;
+  const ex = { website:cW(iW>=0?row[iW]:null), phone:cP(iP>=0?row[iP]:null), email:cM(iM>=0?row[iM]:null), address:cA(iA>=0?row[iA]:null) };
+  const geo = iG>=0&&row[iG]?t(row[iG]):null;
+  const miss = ['website','phone','email','address'].filter(f=>!ex[f]);
+  if (!miss.length) return {...ex, company, ok:true};
 
-  const existing = {
-    website: cSite(iSite>=0  ? row[iSite]  : null),
-    phone:   cPhone(iPhone>=0 ? row[iPhone] : null),
-    email:   cEmail(iEmail>=0 ? row[iEmail] : null),
-    address: cAddr(iAddr>=0  ? row[iAddr]  : null),
-  };
-  const geo     = iGeo>=0 && row[iGeo] ? String(row[iGeo]).trim() : null;
-  const missing = ['website','phone','email','address'].filter(f => !existing[f]);
-
-  if (!missing.length) return { company, ...existing, ok: true };
-
-  let found = { website:null, phone:null, email:null, address:null };
-
-  // Pass 1
+  let f = {website:null,phone:null,email:null,address:null};
   try {
-    const raw = await askClaude(company, geo, missing, false);
-    if (raw) found = { website:cSite(raw.website), phone:cPhone(raw.phone), email:cEmail(raw.email), address:cAddr(raw.address) };
+    const r = await ask(company, geo, miss, false);
+    if (r) f = {website:cW(r.website),phone:cP(r.phone),email:cM(r.email),address:cA(r.address)};
   } catch(err) {
-    const msg = String(err.message||err);
-    addLog('  ⚠ '+company+': '+msg.slice(0,80));
-    if (msg.includes('429')) { addLog('  ⏳ Rate limit — pause 60s…'); await sleep(60000); }
+    addLog('  ⚠ '+company+': '+String(err.message).slice(0,80));
+    if (String(err.message).includes('429')) { addLog('  ⏳ Rate limit — pause 60s…'); await sleep(60000); }
   }
 
-  // Pass 2 if nothing found
-  if (!Object.values(found).some(v=>v) && isRunning) {
+  if (!Object.values(f).some(v=>v) && running) {
     await sleep(DELAY);
-    try {
-      const raw2 = await askClaude(company, geo, missing, true);
-      if (raw2) found = { website:cSite(raw2.website), phone:cPhone(raw2.phone), email:cEmail(raw2.email), address:cAddr(raw2.address) };
-    } catch(e) { /* silent */ }
+    try { const r2=await ask(company,geo,miss,true); if(r2) f={website:cW(r2.website),phone:cP(r2.phone),email:cM(r2.email),address:cA(r2.address)}; } catch {}
   }
 
-  const result = {
-    company,
-    website: found.website || existing.website,
-    phone:   found.phone   || existing.phone,
-    email:   found.email   || existing.email,
-    address: found.address || existing.address,
-  };
-  result.ok = !!(result.website||result.phone||result.email||result.address);
-  return result;
+  const out = {company, website:f.website||ex.website, phone:f.phone||ex.phone, email:f.email||ex.email, address:f.address||ex.address};
+  out.ok = !!(out.website||out.phone||out.email||out.address);
+  return out;
 }
 
-// ── ADD TABLE ROW ────────────────────────────
 function addRow(r) {
-  if (!r) return;
   const tr = document.createElement('tr');
-  const e  = s => String(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;');
   tr.innerHTML =
     '<td title="'+e(r.company)+'">'+e(r.company)+'</td>'+
-    '<td title="'+e(r.website)+'">'+  (r.website ? e(r.website) : '<span class="tno">—</span>')+'</td>'+
-    '<td>'+                           (r.phone   ? e(r.phone)   : '<span class="tno">—</span>')+'</td>'+
-    '<td title="'+e(r.email)+'">'+    (r.email   ? e(r.email)   : '<span class="tno">—</span>')+'</td>'+
-    '<td title="'+e(r.address)+'">'+  (r.address ? e(r.address) : '<span class="tno">—</span>')+'</td>'+
+    '<td title="'+e(r.website)+'">'+  (r.website?e(r.website):'<span class="tno">—</span>')+'</td>'+
+    '<td>'+                           (r.phone  ?e(r.phone)  :'<span class="tno">—</span>')+'</td>'+
+    '<td title="'+e(r.email)+'">'+    (r.email  ?e(r.email)  :'<span class="tno">—</span>')+'</td>'+
+    '<td title="'+e(r.address)+'">'+  (r.address?e(r.address):'<span class="tno">—</span>')+'</td>'+
     '<td class="'+(r.ok?'tok':'tno')+'">'+(r.ok?'✓':'✗')+'</td>';
-  tbody.appendChild(tr);
+  $('tb').appendChild(tr);
 }
 
 // ── START ────────────────────────────────────
-btnEnrich.addEventListener('click', async function() {
-  if (isRunning || !allRows.length) return;
-  isRunning = true;
-  results   = [];
-  tbody.innerHTML = '';
-  btnEnrich.disabled  = true;
-  btnExport.disabled  = true;
-  setLog('🚀 Démarrage · '+allRows.length+' entreprises…');
-  updateUI();
+async function startEnrich() {
+  if (running||!ROWS.length) return;
+  running=true; RES=[]; $('tb').innerHTML='';
+  $('btnE').disabled=true; $('btnX').disabled=true;
+  log('🚀 Démarrage · '+ROWS.length+' entreprises…'); ui();
 
-  for (let i = 0; i < allRows.length; i++) {
-    if (!isRunning) break;
-    const company = String(allRows[i][iName]||'').trim();
-    setLog('🔍 ['+( i+1)+'/'+allRows.length+'] '+company+'…');
+  for (let i=0; i<ROWS.length; i++) {
+    if (!running) break;
+    const co = t(ROWS[i][iN]);
+    log('🔍 ['+(i+1)+'/'+ROWS.length+'] '+co+'…');
     try {
-      const r = await enrichOne(allRows[i]);
-      if (r) { results.push(r); addRow(r); }
+      const r = await enrichOne(ROWS[i]);
+      if (r) { RES.push(r); addRow(r); }
     } catch(err) {
       addLog('  ❌ '+String(err.message||err).slice(0,100));
-      const r = { company, website:null, phone:null, email:null, address:null, ok:false };
-      results.push(r); addRow(r);
+      const r={company:co,website:null,phone:null,email:null,address:null,ok:false};
+      RES.push(r); addRow(r);
     }
-    updateUI();
-    if (i < allRows.length-1 && isRunning) await sleep(DELAY);
+    ui();
+    if (i<ROWS.length-1&&running) await sleep(DELAY);
   }
 
-  isRunning = false;
-  document.title = 'AdminAI';
-  const ok = results.filter(r=>r.ok).length;
-  setLog('✅ Terminé ! '+ok+'/'+allRows.length+' enrichies.');
-  btnEnrich.disabled  = false;
-  btnExport.disabled  = false;
-  updateUI();
-});
+  running=false; document.title='AdminAI';
+  const ok=RES.filter(r=>r.ok).length;
+  log('✅ Terminé ! '+ok+'/'+ROWS.length+' enrichies.');
+  $('btnE').disabled=false; $('btnX').disabled=false; ui();
+}
 
-// ── STOP ────────────────────────────────────
-btnStop.addEventListener('click', function() {
-  if (!isRunning) return;
-  isRunning = false;
-  btnEnrich.disabled = false;
-  btnExport.disabled = results.length === 0;
+// ── STOP ─────────────────────────────────────
+function stopEnrich() {
+  if (!running) return;
+  running=false;
+  $('btnE').disabled=false; $('btnX').disabled=RES.length===0;
   addLog('⛔ Arrêté.');
-  updateUI();
-});
+}
 
-// ── EXPORT ──────────────────────────────────
-btnExport.addEventListener('click', function() {
+// ── EXPORT ───────────────────────────────────
+function doExport() {
   try {
-    // Always build a clean new workbook with all results
-    // This is the most reliable approach on iOS Safari
-    let wb2, wsOut;
+    let wb2;
 
-    if (workbook && allRows.length && results.length) {
-      // Copy original workbook and write enriched data into it
-      const wbBytes = XLSX.write(workbook, { type: 'binary', bookType: 'xlsx' });
-      wb2 = XLSX.read(wbBytes, { type: 'binary' });
-      wsOut = wb2.Sheets[wb2.SheetNames[0]];
-      const ref = XLSX.utils.decode_range(wsOut['!ref'] || 'A1');
+    if (WB && RES.length > 0) {
+      // Write into copy of original workbook
+      const bytes = XLSX.write(WB, {type:'binary',bookType:'xlsx'});
+      wb2 = XLSX.read(bytes, {type:'binary'});
+      const ws  = wb2.Sheets[wb2.SheetNames[0]];
+      const ref = XLSX.utils.decode_range(ws['!ref']||'A1');
 
-      results.forEach(function(r) {
-        const ri = allRows.findIndex(function(row) {
-          return String(row[iName]||'').trim() === r.company;
-        });
-        if (ri < 0) return;
-        const exR = ri + 1; // +1 for header
-
-        function wc(ci, val) {
-          if (ci < 0 || !val || val === 'null') return;
-          const addr = XLSX.utils.encode_cell({ r: exR, c: ci });
-          wsOut[addr] = { t: 's', v: String(val) };
-          if (exR > ref.e.r) ref.e.r = exR;
-        }
-        wc(iSite,  r.website);
-        wc(iPhone, r.phone);
-        wc(iEmail, r.email);
-        wc(iAddr,  r.address);
+      RES.forEach(r => {
+        const ri = ROWS.findIndex(row => t(row[iN])===r.company);
+        if (ri<0) return;
+        const xr = ri+1;
+        const wc = (ci,val) => {
+          if (ci<0||!val||val==='null') return;
+          const addr = XLSX.utils.encode_cell({r:xr,c:ci});
+          ws[addr] = {t:'s',v:String(val)};
+          if (xr>ref.e.r) ref.e.r=xr;
+        };
+        wc(iW,r.website); wc(iP,r.phone); wc(iM,r.email); wc(iA,r.address);
       });
-
-      wsOut['!ref'] = XLSX.utils.encode_range(ref);
+      ws['!ref'] = XLSX.utils.encode_range(ref);
 
     } else {
-      // Fallback: brand new file
-      const data = (results.length ? results : allRows.map(function(row) {
-        return {
-          company: String(row[iName]||''),
-          website: cSite(iSite>=0?row[iSite]:null),
-          phone:   cPhone(iPhone>=0?row[iPhone]:null),
-          email:   cEmail(iEmail>=0?row[iEmail]:null),
-          address: cAddr(iAddr>=0?row[iAddr]:null),
-          ok: false
-        };
-      })).map(function(r) {
-        return {
-          'Entreprise': r.company||'',
-          'Site web':   r.website||'',
-          'Téléphone':  r.phone||'',
-          'Email':      r.email||'',
-          'Adresse':    r.address||''
-        };
-      });
-      wb2   = XLSX.utils.book_new();
-      wsOut = XLSX.utils.json_to_sheet(data);
-      XLSX.utils.book_append_sheet(wb2, wsOut, 'Enrichi');
+      // New file
+      const src = RES.length ? RES : ROWS.map(row=>({company:t(row[iN]),website:cW(iW>=0?row[iW]:null),phone:cP(iP>=0?row[iP]:null),email:cM(iM>=0?row[iM]:null),address:cA(iA>=0?row[iA]:null),ok:false}));
+      wb2 = XLSX.utils.book_new();
+      XLSX.utils.book_append_sheet(wb2, XLSX.utils.json_to_sheet(src.map(r=>({'Entreprise':r.company,'Site web':r.website||'','Téléphone':r.phone||'','Email':r.email||'','Adresse':r.address||''}))), 'Enrichi');
     }
 
     XLSX.writeFile(wb2, 'adminia_enrichi.xlsx');
-    addLog('📥 adminia_enrichi.xlsx exporté !');
+    addLog('📥 adminia_enrichi.xlsx téléchargé !');
 
   } catch(err) {
-    addLog('❌ Export erreur: '+err.message);
+    addLog('❌ Export: '+err.message);
     console.error(err);
   }
-});
-
-const sleep = ms => new Promise(r => setTimeout(r, ms));
+}
 </script>
 
 </body>
