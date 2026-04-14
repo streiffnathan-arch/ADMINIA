@@ -1,204 +1,58 @@
-const WORKER_BASE = "https://shy-waterfall-8a1e.streiffnathan-432.workers.dev";
-const HEALTH_URL = `${WORKER_BASE}/api/health`;
-const ENRICH_URL = `${WORKER_BASE}/api/enrich`;
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>ADMINIA — Extraction données clients</title>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+  <link rel="stylesheet" href="./style.css" />
+</head>
+<body>
+  <div class="container">
+    <h1>ADMINIA</h1>
+    <p class="subtitle">Extraction maximale de données clients depuis vos fichiers Excel</p>
 
-let rows = [];
-let sheetName = "Enriched";
-let originalFileName = "adminia";
+    <!-- Étape 1 : Chargement -->
+    <section id="step-upload">
+      <h2>1. Charger un fichier</h2>
+      <label class="file-drop" for="fileInput">
+        <span id="fileLabel">Cliquer ou déposer un fichier (.xlsx, .xls, .csv)</span>
+        <input type="file" id="fileInput" accept=".xlsx,.xls,.csv" />
+      </label>
+      <p id="fileInfo" class="muted"></p>
+    </section>
 
-document.addEventListener("DOMContentLoaded", () => {
-  const fileInput = document.getElementById("fileInput");
-  const fileInfo = document.getElementById("fileInfo");
-  const testBtn = document.getElementById("testBtn");
-  const startBtn = document.getElementById("startBtn");
-  const statusBox = document.getElementById("status");
-  const preview = document.getElementById("preview");
+    <!-- Étape 2 : Mapping colonnes -->
+    <section id="step-mapping" style="display:none">
+      <h2>2. Colonnes détectées</h2>
+      <p class="hint">ADMINIA a détecté automatiquement les colonnes. Vérifiez et ajustez si nécessaire.</p>
+      <div id="mappingGrid"></div>
+      <div class="btn-row">
+        <button id="extractBtn" class="btn primary">Extraire les données →</button>
+      </div>
+    </section>
 
-  fileInput.addEventListener("change", handleFile);
-  testBtn.addEventListener("click", testWorker);
-  startBtn.addEventListener("click", startEnrichment);
+    <!-- Étape 3 : Résultats extraction -->
+    <section id="step-results" style="display:none">
+      <h2>3. Données extraites</h2>
+      <div id="stats" class="stats-bar"></div>
+      <div id="fillRates"></div>
+      <div id="preview"></div>
+      <div class="btn-row">
+        <button id="exportLocalBtn" class="btn secondary">Exporter Excel</button>
+        <button id="enrichBtn" class="btn primary">Enrichir les données manquantes via IA →</button>
+      </div>
+    </section>
 
-  async function testWorker() {
-    statusBox.innerHTML = "Test du Worker...";
-    try {
-      const response = await fetch(HEALTH_URL, { method: "GET" });
-      const text = await response.text();
+    <!-- Étape 4 : Enrichissement IA -->
+    <section id="step-enrich" style="display:none">
+      <h2>4. Enrichissement IA</h2>
+      <div id="enrichStatus" class="status-box"></div>
+    </section>
 
-      if (!response.ok) {
-        throw new Error(`HTTP ${response.status} - ${text}`);
-      }
+    <div id="status" class="status-box"></div>
+  </div>
 
-      let data;
-      try {
-        data = JSON.parse(text);
-      } catch {
-        throw new Error(`Réponse non JSON: ${text}`);
-      }
-
-      statusBox.innerHTML =
-        `<span class="ok">Worker OK</span>\n` +
-        `URL: ${HEALTH_URL}\n` +
-        `Réponse: ${JSON.stringify(data)}`;
-    } catch (error) {
-      console.error(error);
-      statusBox.innerHTML =
-        `<span class="err">Erreur Worker</span>\n${error.message}`;
-    }
-  }
-
-  function handleFile(event) {
-    const file = event.target.files[0];
-    if (!file) {
-      fileInfo.textContent = "Aucun fichier chargé";
-      startBtn.disabled = true;
-      return;
-    }
-
-    originalFileName = file.name.replace(/\.[^.]+$/, "");
-    fileInfo.textContent = `Chargement : ${file.name}`;
-
-    const reader = new FileReader();
-
-    reader.onload = function (e) {
-      try {
-        if (typeof XLSX === "undefined") {
-          throw new Error("La librairie XLSX ne s’est pas chargée.");
-        }
-
-        const data = new Uint8Array(e.target.result);
-        const workbook = XLSX.read(data, { type: "array" });
-
-        sheetName = workbook.SheetNames[0];
-        const worksheet = workbook.Sheets[sheetName];
-        rows = XLSX.utils.sheet_to_json(worksheet, { defval: "" });
-
-        if (!rows.length) {
-          throw new Error("Aucune ligne détectée.");
-        }
-
-        fileInfo.textContent = `Fichier: ${file.name} | Onglet: ${sheetName} | Lignes: ${rows.length}`;
-        statusBox.textContent = `Excel chargé. ${rows.length} lignes prêtes.`;
-        renderPreview(rows);
-        startBtn.disabled = false;
-      } catch (error) {
-        console.error(error);
-        fileInfo.textContent = `Erreur lecture: ${error.message}`;
-        statusBox.innerHTML = `<span class="err">Erreur lecture fichier</span>\n${error.message}`;
-        startBtn.disabled = true;
-      }
-    };
-
-    reader.onerror = function () {
-      fileInfo.textContent = "Erreur de lecture du fichier.";
-      startBtn.disabled = true;
-    };
-
-    reader.readAsArrayBuffer(file);
-  }
-
-  async function startEnrichment() {
-    if (!rows.length) {
-      statusBox.innerHTML = `<span class="err">Aucune ligne à enrichir.</span>`;
-      return;
-    }
-
-    startBtn.disabled = true;
-    testBtn.disabled = true;
-
-    statusBox.textContent =
-      `Envoi au Worker...\n` +
-      `Endpoint: ${ENRICH_URL}\n` +
-      `Lignes: ${rows.length}`;
-
-    try {
-      const response = await fetch(ENRICH_URL, {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json"
-        },
-        body: JSON.stringify({ rows })
-      });
-
-      const text = await response.text();
-
-      if (!response.ok) {
-        throw new Error(`HTTP ${response.status} - ${text}`);
-      }
-
-      let data;
-      try {
-        data = JSON.parse(text);
-      } catch {
-        throw new Error(`Réponse non JSON: ${text}`);
-      }
-
-      if (!data.ok) {
-        throw new Error(data.error || "Le Worker a renvoyé ok=false");
-      }
-
-      if (!Array.isArray(data.enriched)) {
-        throw new Error("Le champ enriched est absent ou invalide.");
-      }
-
-      rows = data.enriched;
-      renderPreview(rows);
-      exportFile(rows);
-
-      statusBox.innerHTML =
-        `<span class="ok">Enrichissement terminé</span>\n` +
-        `Lignes envoyées: ${data.total ?? "?"}\n` +
-        `Lignes reçues: ${data.enriched.length}\n` +
-        `Fichier exporté automatiquement.`;
-    } catch (error) {
-      console.error(error);
-      statusBox.innerHTML =
-        `<span class="err">Erreur enrichissement</span>\n${error.message}`;
-    } finally {
-      startBtn.disabled = false;
-      testBtn.disabled = false;
-    }
-  }
-
-  function exportFile(data) {
-    const workbook = XLSX.utils.book_new();
-    const worksheet = XLSX.utils.json_to_sheet(data);
-    XLSX.utils.book_append_sheet(workbook, worksheet, sheetName || "Enriched");
-    XLSX.writeFile(workbook, `${originalFileName}_enrichi.xlsx`);
-  }
-
-  function renderPreview(data) {
-    if (!data.length) {
-      preview.innerHTML = "<p class='muted'>Aucune donnée.</p>";
-      return;
-    }
-
-    const headers = Object.keys(data[0]);
-    const sample = data.slice(0, 10);
-
-    let html = "<table><thead><tr>";
-    for (const header of headers) {
-      html += `<th>${escapeHtml(header)}</th>`;
-    }
-    html += "</tr></thead><tbody>";
-
-    for (const row of sample) {
-      html += "<tr>";
-      for (const header of headers) {
-        html += `<td>${escapeHtml(String(row[header] ?? ""))}</td>`;
-      }
-      html += "</tr>";
-    }
-
-    html += "</tbody></table>";
-    preview.innerHTML = html;
-  }
-
-  function escapeHtml(value) {
-    return String(value)
-      .replace(/&/g, "&amp;")
-      .replace(/</g, "&lt;")
-      .replace(/>/g, "&gt;")
-      .replace(/"/g, "&quot;")
-      .replace(/'/g, "&#039;");
-  }
-});
+  <script src="./app.js"></script>
+</body>
+</html>
