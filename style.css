@@ -171,6 +171,9 @@ section { margin-bottom: 8px; }
 }
 .stat-item strong { color: #e2e8f0; }
 .stat-highlight strong { color: #818cf8; }
+.stat-gain  { color: #34d399; font-size: 0.82rem; }
+.stat-gain strong { color: #34d399; }
+.stat-sub   { color: #475569; font-size: 0.75rem; margin-left: 4px; }
 
 /* ── Fill rates ── */
 .fill-rate-row {
