@@ -40,13 +40,55 @@
       <div id="preview"></div>
       <div class="btn-row">
         <button id="exportLocalBtn" class="btn secondary">Exporter Excel</button>
-        <button id="enrichBtn" class="btn primary">Enrichir les données manquantes via IA →</button>
+        <button id="enrichBtn" class="btn primary">Enrichir les données manquantes →</button>
       </div>
     </section>
 
     <!-- Étape 4 : Enrichissement IA -->
     <section id="step-enrich" style="display:none">
       <h2>4. Enrichissement IA</h2>
+
+      <!-- Clé API -->
+      <div id="apiKeySection" class="api-key-box">
+        <label class="api-key-label" for="apiKeyInput">
+          Clé API Anthropic (Claude)
+          <span class="hint-inline">Stockée localement — jamais envoyée à des tiers</span>
+        </label>
+        <div class="api-key-row">
+          <input type="password" id="apiKeyInput" class="api-key-input"
+                 placeholder="sk-ant-api03-…" autocomplete="off" />
+          <button id="toggleKeyBtn" class="btn secondary btn-sm">Afficher</button>
+        </div>
+        <p class="hint">
+          Obtenez votre clé sur
+          <a href="https://console.anthropic.com/settings/keys" target="_blank" rel="noopener">
+            console.anthropic.com
+          </a>. L'enrichissement utilise Claude avec recherche web en temps réel.
+        </p>
+      </div>
+
+      <!-- Contrôles enrichissement -->
+      <div class="btn-row" style="margin-top:14px">
+        <button id="enrichDirectBtn" class="btn primary">
+          Lancer l'enrichissement Claude IA →
+        </button>
+        <button id="pauseBtn"  class="btn secondary" style="display:none">⏸ Pause</button>
+        <button id="resumeBtn" class="btn secondary" style="display:none">▶ Reprendre</button>
+        <button id="stopBtn"   class="btn secondary" style="display:none">⏹ Arrêter</button>
+      </div>
+
+      <!-- Barre de progression -->
+      <div id="enrichProgressBox" style="display:none">
+        <div class="enrich-progress-header">
+          <span id="enrichProgressLabel">0 / 0 entreprises</span>
+          <span id="enrichProgressPct">0%</span>
+        </div>
+        <div class="enrich-bar-bg">
+          <div id="enrichBar" class="enrich-bar" style="width:0%"></div>
+        </div>
+        <div id="enrichLog" class="enrich-log"></div>
+      </div>
+
       <div id="enrichStatus" class="status-box"></div>
     </section>
 

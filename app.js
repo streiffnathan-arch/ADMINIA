@@ -2,7 +2,13 @@
 // ADMINIA — Extraction maximale de données clients
 // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
-const ENRICH_URL = "https://shy-waterfall-8a1e.streiffnathan-432.workers.dev/api/enrich";
+const ENRICH_URL        = "https://shy-waterfall-8a1e.streiffnathan-432.workers.dev/api/enrich";
+const CLAUDE_API_URL    = "https://api.anthropic.com/v1/messages";
+const CLAUDE_MODEL      = "claude-sonnet-4-6";
+const ENRICH_BATCH_SIZE = 5;   // entreprises par appel API
+const ENRICH_DELAY_MS   = 2500; // ms entre deux batchs (rate-limit)
+const CACHE_KEY         = "adminia_enrich_cache_v1";
+const APIKEY_LS_KEY     = "adminia_claude_key";
 
 // ── Définitions des champs cibles (multi-langue) ─────────────
 
@@ -660,6 +666,7 @@ document.addEventListener("DOMContentLoaded", () => {
   document.getElementById("extractBtn").addEventListener("click", doExtract);
   document.getElementById("exportLocalBtn").addEventListener("click", exportToExcel);
   document.getElementById("enrichBtn").addEventListener("click", doEnrich);
+  // enrichDirectBtn est branché dynamiquement dans doEnrich()
 });
 
 // ── 1. Chargement du fichier ──────────────────────────────────
@@ -954,53 +961,312 @@ function exportToExcel() {
   showStatus("Fichier exporté : " + originalFileName + "_extrait.xlsx", "ok");
 }
 
-// ── 6. Enrichissement IA ──────────────────────────────────────
+// ── 6. Enrichissement IA direct (Claude + web_search) ────────
 
-async function doEnrich() {
+// État de la session d'enrichissement
+let enrichPaused  = false;
+let enrichStopped = false;
+
+// Cache de session pour éviter les doubles appels
+function loadCache() {
+  try { return JSON.parse(localStorage.getItem(CACHE_KEY) || "{}"); }
+  catch { return {}; }
+}
+function saveCache(cache) {
+  try { localStorage.setItem(CACHE_KEY, JSON.stringify(cache)); } catch {}
+}
+function cacheKey(row) {
+  return [row.company, row.city, row.region].map(v => (v || "").toLowerCase().trim()).join("|");
+}
+
+// Ouvre l'étape enrichissement et branche les contrôles
+function doEnrich() {
   if (!extractedRows.length) return;
-
-  const enrichBtn = document.getElementById("enrichBtn");
-  enrichBtn.disabled = true;
 
   const section = document.getElementById("step-enrich");
   section.style.display = "block";
   section.scrollIntoView({ behavior: "smooth" });
 
-  const enrichStatus = document.getElementById("enrichStatus");
-  enrichStatus.textContent = `Envoi de ${extractedRows.length} lignes au Worker IA...`;
+  // Restaure la clé API sauvegardée
+  const saved = localStorage.getItem(APIKEY_LS_KEY) || "";
+  if (saved) document.getElementById("apiKeyInput").value = saved;
 
-  try {
-    const response = await fetch(ENRICH_URL, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        rows: extractedRows,
-        fieldMap: FIELDS.map(f => ({ key: f.key, label: f.label }))
-      })
-    });
+  // Bouton afficher/masquer la clé
+  document.getElementById("toggleKeyBtn").onclick = () => {
+    const inp = document.getElementById("apiKeyInput");
+    const btn = document.getElementById("toggleKeyBtn");
+    const show = inp.type === "password";
+    inp.type = show ? "text" : "password";
+    btn.textContent = show ? "Masquer" : "Afficher";
+  };
 
-    const text = await response.text();
-    if (!response.ok) throw new Error(`HTTP ${response.status}: ${text}`);
-
-    let data;
-    try { data = JSON.parse(text); }
-    catch { throw new Error("Réponse non JSON : " + text.slice(0, 200)); }
-
-    if (!data.ok) throw new Error(data.error || "Erreur Worker");
-    if (!Array.isArray(data.enriched)) throw new Error("Réponse invalide (pas de tableau enriched)");
-
-    extractedRows = data.enriched;
-    showResults();
-    enrichStatus.innerHTML = `<span class="ok">Enrichissement terminé — ${data.enriched.length} lignes mises à jour.</span>`;
-    showStatus("Enrichissement IA terminé.", "ok");
-  } catch (err) {
-    enrichStatus.innerHTML = `<span class="err">Erreur : ${escapeHtml(err.message)}</span>`;
-    showStatus("Erreur enrichissement : " + err.message, "err");
-    console.error(err);
-  } finally {
-    enrichBtn.disabled = false;
-  }
+  document.getElementById("enrichDirectBtn").onclick = startDirectEnrich;
+  document.getElementById("pauseBtn").onclick  = () => { enrichPaused  = true;  updateCtrlBtns("paused"); };
+  document.getElementById("resumeBtn").onclick = () => { enrichPaused  = false; updateCtrlBtns("running"); resumeEnrich(); };
+  document.getElementById("stopBtn").onclick   = () => { enrichStopped = true;  updateCtrlBtns("stopped"); };
 }
+
+function updateCtrlBtns(state) {
+  const s = document.getElementById;
+  document.getElementById("pauseBtn").style.display  = state === "running" ? "inline-block" : "none";
+  document.getElementById("resumeBtn").style.display = state === "paused"  ? "inline-block" : "none";
+  document.getElementById("stopBtn").style.display   = state !== "stopped" ? "inline-block" : "none";
+}
+
+// Résumé des champs manquants pour une ligne
+function missingFields(row) {
+  return SUMMARY_FIELDS.filter(k => !row[k] || row[k] === "");
+}
+
+// ── Prompt d'enrichissement ───────────────────────────────────
+//
+// Envoyé à Claude pour chaque batch de ENRICH_BATCH_SIZE entreprises.
+// Focalise la recherche sur les sources suisses connues.
+
+function buildPrompt(batch) {
+  const items = batch.map((row, i) => {
+    const known = SUMMARY_FIELDS
+      .filter(k => row[k] && row[k] !== "")
+      .map(k => `${k}: "${row[k]}"`)
+      .join(", ");
+    const needed = missingFields(row).join(", ");
+    return `[${i}] société="${row.company || "?"}"${row.city ? ` ville="${row.city}"` : ""}${row.region ? ` région="${row.region}"` : ""}
+    connu: ${known || "—"}
+    à trouver: ${needed}`;
+  }).join("\n\n");
+
+  return `Tu es un chercheur de données B2B suisse professionnel.
+Pour chaque entreprise ci-dessous, effectue des recherches web pour trouver les données manquantes.
+
+STRATÉGIE DE RECHERCHE (dans l'ordre) :
+1. Google : "[nom société] [ville] contact Switzerland"
+2. zefix.ch / moneyhouse.ch → toujours l'adresse officielle + IDE des sociétés suisses
+3. local.ch / search.ch → numéro de téléphone + adresse
+4. Site web officiel → page /contact, /impressum ou /about-us pour email et téléphone
+5. LinkedIn company page → lien vers site web
+
+RÈGLES :
+- website : domaine sans protocole (ex: acme.ch, pas https://www.acme.ch)
+- phone : format international suisse +41 XX XXX XX XX ; français +33 X XX XX XX XX
+- email : email professionnel réel (jamais info@example.com ou inventé)
+- postal_code : NPA suisse 4 chiffres ou CP français 5 chiffres
+- country : code ISO 2 lettres (CH, FR, DE, IT, BE…)
+- Si données introuvables après recherche → null (ne jamais inventer)
+- Effectue au moins 2-3 recherches web par entreprise avant de déclarer null
+
+ENTREPRISES :
+${items}
+
+Réponds UNIQUEMENT avec un tableau JSON valide (sans texte avant ni après) :
+[
+  {"idx":0,"website":…,"email":…,"phone":…,"mobile":…,"address":…,"postal_code":…,"city":…,"country":…},
+  …
+]`;
+}
+
+// ── Appel Claude API ──────────────────────────────────────────
+
+async function callClaudeAPI(apiKey, prompt) {
+  const resp = await fetch(CLAUDE_API_URL, {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+      "x-api-key": apiKey,
+      "anthropic-version": "2023-06-01",
+      "anthropic-dangerous-direct-browser-access": "true"
+    },
+    body: JSON.stringify({
+      model: CLAUDE_MODEL,
+      max_tokens: 4096,
+      tools: [{
+        type: "web_search_20250305",
+        name: "web_search",
+        max_uses: 15
+      }],
+      messages: [{ role: "user", content: prompt }]
+    })
+  });
+
+  if (resp.status === 429) {
+    // Rate limit — attendre et réessayer
+    const retry = parseInt(resp.headers.get("retry-after") || "30", 10);
+    logEnrich(`⏳ Rate limit — reprise dans ${retry}s…`);
+    await sleep(retry * 1000);
+    return callClaudeAPI(apiKey, prompt);
+  }
+
+  if (!resp.ok) {
+    const body = await resp.text();
+    throw new Error(`Claude API ${resp.status}: ${body.slice(0, 300)}`);
+  }
+
+  return resp.json();
+}
+
+// ── Extraction du JSON dans la réponse Claude ─────────────────
+
+function extractJSON(apiResponse) {
+  // Cherche le dernier bloc de texte dans les content blocks
+  const blocks = apiResponse.content || [];
+  let text = "";
+  for (const b of blocks) {
+    if (b.type === "text") text = b.text; // prend le dernier
+  }
+
+  // Extrait le tableau JSON (peut être entouré de texte parasite)
+  const m = text.match(/\[[\s\S]*\]/);
+  if (!m) return null;
+  try { return JSON.parse(m[0]); }
+  catch { return null; }
+}
+
+// ── Application des résultats sur extractedRows ───────────────
+
+function applyResults(batch, results, cache) {
+  let filled = 0;
+  for (const item of results) {
+    const row = batch[item.idx];
+    if (!row) continue;
+
+    const ENRICHABLE = ["website","email","email2","phone","mobile",
+                        "address","postal_code","city","country","linkedin"];
+    for (const key of ENRICHABLE) {
+      const val = item[key];
+      if (val && val !== "null" && String(val).trim() !== "" && !row[key]) {
+        row[key] = normalizeValue(val, FIELDS.find(f => f.key === key)?.type || "text");
+        filled++;
+      }
+    }
+
+    // Re-run inferences now that more data is known
+    inferFromExisting(row);
+    cache[cacheKey(row)] = Object.fromEntries(
+      ENRICHABLE.map(k => [k, row[k] || ""])
+    );
+  }
+  return filled;
+}
+
+// ── Boucle principale d'enrichissement ───────────────────────
+
+let resumeCallback = null;
+
+async function startDirectEnrich() {
+  const apiKey = document.getElementById("apiKeyInput").value.trim();
+  if (!apiKey || !apiKey.startsWith("sk-ant")) {
+    document.getElementById("enrichStatus").innerHTML =
+      `<span class="err">Clé API invalide. Elle doit commencer par "sk-ant-…"</span>`;
+    return;
+  }
+  localStorage.setItem(APIKEY_LS_KEY, apiKey);
+
+  enrichPaused  = false;
+  enrichStopped = false;
+
+  document.getElementById("enrichDirectBtn").disabled = true;
+  document.getElementById("enrichProgressBox").style.display = "block";
+  document.getElementById("enrichStatus").innerHTML = "";
+  updateCtrlBtns("running");
+
+  const cache = loadCache();
+
+  // Sélectionne uniquement les lignes avec des champs manquants
+  const toProcess = extractedRows.filter(r => missingFields(r).length > 0);
+  let done = 0;
+  let totalFilled = 0;
+  let skipped = 0;
+
+  logEnrich(`🚀 ${toProcess.length} entreprises à enrichir (${extractedRows.length - toProcess.length} déjà complètes)`);
+
+  for (let i = 0; i < toProcess.length; i += ENRICH_BATCH_SIZE) {
+    if (enrichStopped) break;
+
+    // Gestion de la pause
+    while (enrichPaused) {
+      await sleep(500);
+      if (enrichStopped) break;
+    }
+    if (enrichStopped) break;
+
+    const batch = toProcess.slice(i, i + ENRICH_BATCH_SIZE);
+
+    // Vérifie le cache pour chaque ligne du batch
+    const toFetch = [];
+    for (const row of batch) {
+      const ck = cacheKey(row);
+      if (cache[ck]) {
+        // Applique le cache directement
+        const cached = cache[ck];
+        for (const [k, v] of Object.entries(cached)) {
+          if (v && !row[k]) { row[k] = v; totalFilled++; }
+        }
+        skipped++;
+      } else {
+        toFetch.push(row);
+      }
+    }
+
+    if (toFetch.length > 0) {
+      try {
+        const names = toFetch.map(r => r.company || "?").join(", ");
+        logEnrich(`🔍 [${i + 1}–${Math.min(i + ENRICH_BATCH_SIZE, toProcess.length)}/${toProcess.length}] ${names}`);
+
+        const prompt   = buildPrompt(toFetch);
+        const response = await callClaudeAPI(apiKey, prompt);
+        const results  = extractJSON(response);
+
+        if (results) {
+          const gained = applyResults(toFetch, results, cache);
+          totalFilled += gained;
+          saveCache(cache);
+          logEnrich(`  ✓ +${gained} cellules remplies`);
+        } else {
+          logEnrich(`  ⚠ Réponse non parsable — batch ignoré`);
+        }
+      } catch (err) {
+        logEnrich(`  ✗ Erreur : ${err.message}`);
+        console.error(err);
+      }
+    }
+
+    done += batch.length;
+    updateEnrichProgress(done, toProcess.length);
+
+    // Délai entre batchs (sauf pour le dernier)
+    if (i + ENRICH_BATCH_SIZE < toProcess.length && !enrichStopped) {
+      await sleep(ENRICH_DELAY_MS);
+    }
+  }
+
+  const finalMsg = enrichStopped
+    ? `Arrêté. ${totalFilled} cellules enrichies (${skipped} depuis cache).`
+    : `Terminé. ${totalFilled} cellules enrichies sur ${toProcess.length} entreprises.`;
+
+  document.getElementById("enrichStatus").innerHTML =
+    `<span class="ok">${escapeHtml(finalMsg)}</span>`;
+
+  updateCtrlBtns("stopped");
+  document.getElementById("enrichDirectBtn").disabled = false;
+  showResults();
+}
+
+function updateEnrichProgress(done, total) {
+  const pct = total > 0 ? Math.round((done / total) * 100) : 0;
+  document.getElementById("enrichProgressLabel").textContent = `${done} / ${total} entreprises`;
+  document.getElementById("enrichProgressPct").textContent   = `${pct}%`;
+  document.getElementById("enrichBar").style.width           = `${pct}%`;
+}
+
+function logEnrich(msg) {
+  const log = document.getElementById("enrichLog");
+  const p = document.createElement("p");
+  p.className = "log-line";
+  p.textContent = msg;
+  log.appendChild(p);
+  log.scrollTop = log.scrollHeight;
+}
+
+function sleep(ms) { return new Promise(r => setTimeout(r, ms)); }
 
 // ── Utilitaires ───────────────────────────────────────────────
 
