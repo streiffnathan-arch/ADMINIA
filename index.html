@@ -4,39 +4,19 @@
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>AdminAI</title>
-  <link rel="stylesheet" href="style.css" />
+  <link rel="stylesheet" href="./style.css" />
   <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
 </head>
 <body>
-  <div class="app">
-    <header class="header">
-      <h1>AdminAI</h1>
-      <p>Enrichissement Excel de données entreprises</p>
-    </header>
+  <div class="container">
+    <h1>AdminAI</h1>
+    <p>Test de chargement Excel</p>
 
-    <main class="main">
-      <section class="card">
-        <h2>1. Charger un fichier Excel</h2>
-        <input type="file" id="fileInput" accept=".xlsx,.xls,.csv" />
-        <p id="fileInfo" class="muted">Aucun fichier chargé</p>
-      </section>
-
-      <section class="card">
-        <h2>2. Prévisualisation</h2>
-        <div id="preview"></div>
-      </section>
-
-      <section class="card">
-        <h2>3. Lancer l’enrichissement</h2>
-        <button id="startBtn" disabled>Lancer</button>
-        <p class="muted">
-          Le frontend GitHub envoie les lignes au backend sécurisé.
-        </p>
-        <div id="status"></div>
-      </section>
-    </main>
+    <input type="file" id="fileInput" accept=".xlsx,.xls,.csv" />
+    <div id="status">Prêt</div>
+    <div id="preview"></div>
   </div>
 
-  <script src="app.js"></script>
+  <script src="./app.js"></script>
 </body>
 </html>
