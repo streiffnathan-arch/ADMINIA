@@ -4,20 +4,121 @@
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>AdminAI</title>
+
   <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
-  <link rel="stylesheet" href="./style.css" />
+
+  <style>
+    body {
+      margin: 0;
+      padding: 24px;
+      font-family: Arial, sans-serif;
+      background: #111827;
+      color: white;
+    }
+
+    .container {
+      max-width: 1100px;
+      margin: 0 auto;
+    }
+
+    h1, h2 {
+      margin-bottom: 12px;
+    }
+
+    p {
+      color: #cbd5e1;
+    }
+
+    input[type="file"] {
+      margin: 16px 0;
+      display: block;
+    }
+
+    button {
+      background: #f0a830;
+      color: #111827;
+      border: none;
+      border-radius: 8px;
+      padding: 10px 16px;
+      font-size: 14px;
+      font-weight: 700;
+      cursor: pointer;
+      margin-top: 8px;
+    }
+
+    button:disabled {
+      opacity: 0.5;
+      cursor: not-allowed;
+    }
+
+    #status {
+      margin: 14px 0;
+      white-space: pre-wrap;
+      color: #cbd5e1;
+    }
+
+    #downloadBox {
+      margin-top: 16px;
+    }
+
+    .download-link {
+      display: inline-block;
+      margin-top: 10px;
+      color: #f0a830;
+      text-decoration: none;
+      font-weight: bold;
+    }
+
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      margin-top: 16px;
+      background: #1f2937;
+      overflow: hidden;
+    }
+
+    th, td {
+      border: 1px solid #374151;
+      padding: 8px;
+      text-align: left;
+      font-size: 14px;
+      vertical-align: top;
+    }
+
+    th {
+      background: #374151;
+    }
+
+    .section {
+      margin-top: 28px;
+      padding: 18px;
+      border: 1px solid #374151;
+      border-radius: 12px;
+      background: #0f172a;
+    }
+  </style>
 </head>
 <body>
   <div class="container">
     <h1>AdminAI</h1>
-    <p>Enrichissement Excel de données entreprises</p>
+    <p>Charge un Excel, envoie les lignes au Worker, puis télécharge le fichier enrichi.</p>
 
-    <h2>1. Charger un fichier Excel</h2>
-    <input type="file" id="fileInput" accept=".xlsx,.xls,.csv" />
-    <p id="status">Aucun fichier chargé</p>
+    <div class="section">
+      <h2>1. Charger un fichier Excel</h2>
+      <input type="file" id="fileInput" accept=".xlsx,.xls,.csv" />
+      <div id="status">Aucun fichier chargé</div>
+    </div>
 
-    <h2>2. Prévisualisation</h2>
-    <div id="preview"></div>
+    <div class="section">
+      <h2>2. Prévisualisation</h2>
+      <div id="preview"></div>
+    </div>
+
+    <div class="section">
+      <h2>3. Lancer l’enrichissement</h2>
+      <button id="startBtn" disabled>Lancer</button>
+      <div id="downloadBox"></div>
+    </div>
   </div>
 
   <script src="./app.js"></script>
