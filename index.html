@@ -1,144 +1,204 @@
-<!DOCTYPE html>
-<html lang="fr">
-<head>
-  <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>AdminAI</title>
-  <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
-  <style>
-    body {
-      margin: 0;
-      padding: 24px;
-      font-family: Arial, sans-serif;
-      background: #0f172a;
-      color: #f8fafc;
+const WORKER_BASE = "https://shy-waterfall-8a1e.streiffnathan-432.workers.dev";
+const HEALTH_URL = `${WORKER_BASE}/api/health`;
+const ENRICH_URL = `${WORKER_BASE}/api/enrich`;
+
+let rows = [];
+let sheetName = "Enriched";
+let originalFileName = "adminia";
+
+document.addEventListener("DOMContentLoaded", () => {
+  const fileInput = document.getElementById("fileInput");
+  const fileInfo = document.getElementById("fileInfo");
+  const testBtn = document.getElementById("testBtn");
+  const startBtn = document.getElementById("startBtn");
+  const statusBox = document.getElementById("status");
+  const preview = document.getElementById("preview");
+
+  fileInput.addEventListener("change", handleFile);
+  testBtn.addEventListener("click", testWorker);
+  startBtn.addEventListener("click", startEnrichment);
+
+  async function testWorker() {
+    statusBox.innerHTML = "Test du Worker...";
+    try {
+      const response = await fetch(HEALTH_URL, { method: "GET" });
+      const text = await response.text();
+
+      if (!response.ok) {
+        throw new Error(`HTTP ${response.status} - ${text}`);
+      }
+
+      let data;
+      try {
+        data = JSON.parse(text);
+      } catch {
+        throw new Error(`Réponse non JSON: ${text}`);
+      }
+
+      statusBox.innerHTML =
+        `<span class="ok">Worker OK</span>\n` +
+        `URL: ${HEALTH_URL}\n` +
+        `Réponse: ${JSON.stringify(data)}`;
+    } catch (error) {
+      console.error(error);
+      statusBox.innerHTML =
+        `<span class="err">Erreur Worker</span>\n${error.message}`;
+    }
+  }
+
+  function handleFile(event) {
+    const file = event.target.files[0];
+    if (!file) {
+      fileInfo.textContent = "Aucun fichier chargé";
+      startBtn.disabled = true;
+      return;
     }
 
-    .container {
-      max-width: 1200px;
-      margin: 0 auto;
+    originalFileName = file.name.replace(/\.[^.]+$/, "");
+    fileInfo.textContent = `Chargement : ${file.name}`;
+
+    const reader = new FileReader();
+
+    reader.onload = function (e) {
+      try {
+        if (typeof XLSX === "undefined") {
+          throw new Error("La librairie XLSX ne s’est pas chargée.");
+        }
+
+        const data = new Uint8Array(e.target.result);
+        const workbook = XLSX.read(data, { type: "array" });
+
+        sheetName = workbook.SheetNames[0];
+        const worksheet = workbook.Sheets[sheetName];
+        rows = XLSX.utils.sheet_to_json(worksheet, { defval: "" });
+
+        if (!rows.length) {
+          throw new Error("Aucune ligne détectée.");
+        }
+
+        fileInfo.textContent = `Fichier: ${file.name} | Onglet: ${sheetName} | Lignes: ${rows.length}`;
+        statusBox.textContent = `Excel chargé. ${rows.length} lignes prêtes.`;
+        renderPreview(rows);
+        startBtn.disabled = false;
+      } catch (error) {
+        console.error(error);
+        fileInfo.textContent = `Erreur lecture: ${error.message}`;
+        statusBox.innerHTML = `<span class="err">Erreur lecture fichier</span>\n${error.message}`;
+        startBtn.disabled = true;
+      }
+    };
+
+    reader.onerror = function () {
+      fileInfo.textContent = "Erreur de lecture du fichier.";
+      startBtn.disabled = true;
+    };
+
+    reader.readAsArrayBuffer(file);
+  }
+
+  async function startEnrichment() {
+    if (!rows.length) {
+      statusBox.innerHTML = `<span class="err">Aucune ligne à enrichir.</span>`;
+      return;
     }
 
-    .card {
-      background: #111827;
-      border: 1px solid #334155;
-      border-radius: 14px;
-      padding: 18px;
-      margin-bottom: 18px;
+    startBtn.disabled = true;
+    testBtn.disabled = true;
+
+    statusBox.textContent =
+      `Envoi au Worker...\n` +
+      `Endpoint: ${ENRICH_URL}\n` +
+      `Lignes: ${rows.length}`;
+
+    try {
+      const response = await fetch(ENRICH_URL, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json"
+        },
+        body: JSON.stringify({ rows })
+      });
+
+      const text = await response.text();
+
+      if (!response.ok) {
+        throw new Error(`HTTP ${response.status} - ${text}`);
+      }
+
+      let data;
+      try {
+        data = JSON.parse(text);
+      } catch {
+        throw new Error(`Réponse non JSON: ${text}`);
+      }
+
+      if (!data.ok) {
+        throw new Error(data.error || "Le Worker a renvoyé ok=false");
+      }
+
+      if (!Array.isArray(data.enriched)) {
+        throw new Error("Le champ enriched est absent ou invalide.");
+      }
+
+      rows = data.enriched;
+      renderPreview(rows);
+      exportFile(rows);
+
+      statusBox.innerHTML =
+        `<span class="ok">Enrichissement terminé</span>\n` +
+        `Lignes envoyées: ${data.total ?? "?"}\n` +
+        `Lignes reçues: ${data.enriched.length}\n` +
+        `Fichier exporté automatiquement.`;
+    } catch (error) {
+      console.error(error);
+      statusBox.innerHTML =
+        `<span class="err">Erreur enrichissement</span>\n${error.message}`;
+    } finally {
+      startBtn.disabled = false;
+      testBtn.disabled = false;
+    }
+  }
+
+  function exportFile(data) {
+    const workbook = XLSX.utils.book_new();
+    const worksheet = XLSX.utils.json_to_sheet(data);
+    XLSX.utils.book_append_sheet(workbook, worksheet, sheetName || "Enriched");
+    XLSX.writeFile(workbook, `${originalFileName}_enrichi.xlsx`);
+  }
+
+  function renderPreview(data) {
+    if (!data.length) {
+      preview.innerHTML = "<p class='muted'>Aucune donnée.</p>";
+      return;
     }
 
-    h1, h2 {
-      margin-top: 0;
+    const headers = Object.keys(data[0]);
+    const sample = data.slice(0, 10);
+
+    let html = "<table><thead><tr>";
+    for (const header of headers) {
+      html += `<th>${escapeHtml(header)}</th>`;
+    }
+    html += "</tr></thead><tbody>";
+
+    for (const row of sample) {
+      html += "<tr>";
+      for (const header of headers) {
+        html += `<td>${escapeHtml(String(row[header] ?? ""))}</td>`;
+      }
+      html += "</tr>";
     }
 
-    p {
-      color: #cbd5e1;
-    }
+    html += "</tbody></table>";
+    preview.innerHTML = html;
+  }
 
-    input[type="file"] {
-      margin: 12px 0;
-    }
-
-    .row {
-      display: flex;
-      gap: 12px;
-      flex-wrap: wrap;
-      margin-top: 12px;
-    }
-
-    button {
-      background: #f59e0b;
-      color: #111827;
-      border: none;
-      border-radius: 10px;
-      padding: 10px 16px;
-      font-size: 14px;
-      font-weight: bold;
-      cursor: pointer;
-    }
-
-    button:disabled {
-      opacity: 0.5;
-      cursor: not-allowed;
-    }
-
-    #status {
-      margin-top: 12px;
-      white-space: pre-wrap;
-      color: #e2e8f0;
-    }
-
-    #previewWrap {
-      overflow-x: auto;
-      max-width: 100%;
-      border: 1px solid #334155;
-      border-radius: 10px;
-    }
-
-    table {
-      width: 100%;
-      border-collapse: collapse;
-      min-width: 900px;
-      background: #1e293b;
-    }
-
-    th, td {
-      border: 1px solid #334155;
-      padding: 8px;
-      text-align: left;
-      vertical-align: top;
-      font-size: 14px;
-    }
-
-    th {
-      background: #334155;
-      position: sticky;
-      top: 0;
-    }
-
-    .ok {
-      color: #22c55e;
-      font-weight: bold;
-    }
-
-    .err {
-      color: #f87171;
-      font-weight: bold;
-    }
-
-    .muted {
-      color: #94a3b8;
-    }
-  </style>
-</head>
-<body>
-  <div class="container">
-    <h1>AdminAI</h1>
-    <p>Charge un Excel, teste le Worker, enrichis les lignes, puis exporte le fichier.</p>
-
-    <div class="card">
-      <h2>1. Charger un fichier Excel</h2>
-      <input type="file" id="fileInput" accept=".xlsx,.xls,.csv" />
-      <div id="fileInfo" class="muted">Aucun fichier chargé</div>
-    </div>
-
-    <div class="card">
-      <h2>2. Actions</h2>
-      <div class="row">
-        <button id="testBtn">Tester le Worker</button>
-        <button id="startBtn" disabled>Lancer l’enrichissement</button>
-      </div>
-      <div id="status">Prêt.</div>
-    </div>
-
-    <div class="card">
-      <h2>3. Prévisualisation</h2>
-      <div id="previewWrap">
-        <div id="preview"></div>
-      </div>
-    </div>
-  </div>
-
-  <script src="./app.js"></script>
-</body>
-</html>
+  function escapeHtml(value) {
+    return String(value)
+      .replace(/&/g, "&amp;")
+      .replace(/</g, "&lt;")
+      .replace(/>/g, "&gt;")
+      .replace(/"/g, "&quot;")
+      .replace(/'/g, "&#039;");
+  }
+});
