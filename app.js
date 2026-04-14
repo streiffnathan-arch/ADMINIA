@@ -1,84 +1,70 @@
-const fileInput = document.getElementById("fileInput");
-const statusBox = document.getElementById("status");
-const preview = document.getElementById("preview");
+document.addEventListener("DOMContentLoaded", () => {
+  const fileInput = document.getElementById("fileInput");
+  const status = document.getElementById("status");
+  const preview = document.getElementById("preview");
 
-fileInput.addEventListener("change", handleFile);
+  fileInput.addEventListener("change", handleFile);
 
-function handleFile(event) {
-  const file = event.target.files[0];
-  if (!file) {
-    statusBox.textContent = "Aucun fichier sélectionné.";
-    return;
-  }
+  function handleFile(e) {
+    const file = e.target.files[0];
+    if (!file) return;
 
-  statusBox.textContent = `Chargement de ${file.name}...`;
+    status.textContent = "Chargement...";
 
-  const reader = new FileReader();
+    const reader = new FileReader();
 
-  reader.onload = function (e) {
-    try {
-      if (typeof XLSX === "undefined") {
-        throw new Error("La librairie XLSX ne s’est pas chargée.");
+    reader.onload = function (event) {
+      try {
+        if (typeof XLSX === "undefined") {
+          throw new Error("XLSX non chargé");
+        }
+
+        const data = new Uint8Array(event.target.result);
+        const workbook = XLSX.read(data, { type: "array" });
+
+        const sheetName = workbook.SheetNames[0];
+        const worksheet = workbook.Sheets[sheetName];
+
+        const json = XLSX.utils.sheet_to_json(worksheet, { defval: "" });
+
+        status.textContent = `OK : ${json.length} lignes`;
+
+        renderTable(json);
+      } catch (err) {
+        console.error(err);
+        status.textContent = "Erreur : " + err.message;
       }
+    };
 
-      const data = new Uint8Array(e.target.result);
-      const workbook = XLSX.read(data, { type: "array" });
+    reader.onerror = () => {
+      status.textContent = "Erreur lecture fichier";
+    };
 
-      const firstSheetName = workbook.SheetNames[0];
-      const worksheet = workbook.Sheets[firstSheetName];
-      const rows = XLSX.utils.sheet_to_json(worksheet, { defval: "" });
+    reader.readAsArrayBuffer(file);
+  }
 
-      statusBox.textContent =
-        `Fichier chargé : ${file.name}\n` +
-        `Onglet : ${firstSheetName}\n` +
-        `Lignes : ${rows.length}`;
-
-      renderPreview(rows);
-    } catch (error) {
-      console.error(error);
-      statusBox.textContent = `Erreur : ${error.message}`;
+  function renderTable(rows) {
+    if (!rows.length) {
+      preview.innerHTML = "Aucune donnée";
+      return;
     }
-  };
 
-  reader.onerror = function () {
-    statusBox.textContent = "Erreur de lecture du fichier.";
-  };
+    const headers = Object.keys(rows[0]);
+    const sample = rows.slice(0, 10);
 
-  reader.readAsArrayBuffer(file);
-}
+    let html = "<table><thead><tr>";
+    headers.forEach(h => html += `<th>${h}</th>`);
+    html += "</tr></thead><tbody>";
 
-function renderPreview(rows) {
-  if (!rows || rows.length === 0) {
-    preview.innerHTML = "<p>Aucune donnée trouvée.</p>";
-    return;
+    sample.forEach(row => {
+      html += "<tr>";
+      headers.forEach(h => {
+        html += `<td>${row[h] ?? ""}</td>`;
+      });
+      html += "</tr>";
+    });
+
+    html += "</tbody></table>";
+    preview.innerHTML = html;
   }
-
-  const headers = Object.keys(rows[0]);
-  const sample = rows.slice(0, 10);
-
-  let html = "<table><thead><tr>";
-  for (const header of headers) {
-    html += `<th>${escapeHtml(header)}</th>`;
-  }
-  html += "</tr></thead><tbody>";
-
-  for (const row of sample) {
-    html += "<tr>";
-    for (const header of headers) {
-      html += `<td>${escapeHtml(String(row[header] ?? ""))}</td>`;
-    }
-    html += "</tr>";
-  }
-
-  html += "</tbody></table>";
-  preview.innerHTML = html;
-}
-
-function escapeHtml(value) {
-  return value
-    .replace(/&/g, "&amp;")
-    .replace(/</g, "&lt;")
-    .replace(/>/g, "&gt;")
-    .replace(/"/g, "&quot;")
-    .replace(/'/g, "&#039;");
-}
+});
