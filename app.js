@@ -1,127 +1,84 @@
-let workbook = null;
-let activeSheet = null;
-let rows = [];
-let headers = [];
-
-// Remplace cette URL par ton backend plus tard
-const BACKEND_URL = "https://TON-BACKEND/api/enrich";
-
 const fileInput = document.getElementById("fileInput");
-const fileInfo = document.getElementById("fileInfo");
-const preview = document.getElementById("preview");
-const startBtn = document.getElementById("startBtn");
 const statusBox = document.getElementById("status");
+const preview = document.getElementById("preview");
 
-fileInput.addEventListener("change", handleFileSelect);
-startBtn.addEventListener("click", startEnrichment);
+fileInput.addEventListener("change", handleFile);
 
-function handleFileSelect(event) {
+function handleFile(event) {
   const file = event.target.files[0];
-  if (!file) return;
+  if (!file) {
+    statusBox.textContent = "Aucun fichier sélectionné.";
+    return;
+  }
 
-  fileInfo.textContent = `Fichier chargé : ${file.name}`;
+  statusBox.textContent = `Chargement de ${file.name}...`;
 
   const reader = new FileReader();
-  reader.onload = (e) => {
+
+  reader.onload = function (e) {
     try {
+      if (typeof XLSX === "undefined") {
+        throw new Error("La librairie XLSX ne s’est pas chargée.");
+      }
+
       const data = new Uint8Array(e.target.result);
-      workbook = XLSX.read(data, { type: "array" });
+      const workbook = XLSX.read(data, { type: "array" });
 
-      activeSheet = workbook.SheetNames[0];
-      const worksheet = workbook.Sheets[activeSheet];
-      const json = XLSX.utils.sheet_to_json(worksheet, { defval: "" });
+      const firstSheetName = workbook.SheetNames[0];
+      const worksheet = workbook.Sheets[firstSheetName];
+      const rows = XLSX.utils.sheet_to_json(worksheet, { defval: "" });
 
-      rows = json;
-      headers = json.length ? Object.keys(json[0]) : [];
+      statusBox.textContent =
+        `Fichier chargé : ${file.name}\n` +
+        `Onglet : ${firstSheetName}\n` +
+        `Lignes : ${rows.length}`;
 
-      renderPreview(rows, headers);
-      startBtn.disabled = rows.length === 0;
-      statusBox.textContent = `${rows.length} lignes détectées.`;
+      renderPreview(rows);
     } catch (error) {
       console.error(error);
-      statusBox.textContent = `Erreur lecture Excel : ${error.message}`;
+      statusBox.textContent = `Erreur : ${error.message}`;
     }
+  };
+
+  reader.onerror = function () {
+    statusBox.textContent = "Erreur de lecture du fichier.";
   };
 
   reader.readAsArrayBuffer(file);
 }
 
-function renderPreview(data, cols) {
-  if (!data.length) {
-    preview.innerHTML = "<p class='muted'>Aucune donnée à afficher</p>";
+function renderPreview(rows) {
+  if (!rows || rows.length === 0) {
+    preview.innerHTML = "<p>Aucune donnée trouvée.</p>";
     return;
   }
 
-  const sample = data.slice(0, 10);
+  const headers = Object.keys(rows[0]);
+  const sample = rows.slice(0, 10);
 
   let html = "<table><thead><tr>";
-  cols.forEach((col) => {
-    html += `<th>${escapeHtml(col)}</th>`;
-  });
+  for (const header of headers) {
+    html += `<th>${escapeHtml(header)}</th>`;
+  }
   html += "</tr></thead><tbody>";
 
-  sample.forEach((row) => {
+  for (const row of sample) {
     html += "<tr>";
-    cols.forEach((col) => {
-      html += `<td>${escapeHtml(String(row[col] ?? ""))}</td>`;
-    });
+    for (const header of headers) {
+      html += `<td>${escapeHtml(String(row[header] ?? ""))}</td>`;
+    }
     html += "</tr>";
-  });
+  }
 
   html += "</tbody></table>";
   preview.innerHTML = html;
 }
 
-async function startEnrichment() {
-  if (!rows.length) return;
-
-  statusBox.textContent = "Envoi des données au backend...";
-
-  try {
-    const response = await fetch(BACKEND_URL, {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json"
-      },
-      body: JSON.stringify({
-        sheetName: activeSheet,
-        rows
-      })
-    });
-
-    if (!response.ok) {
-      const text = await response.text();
-      throw new Error(`Backend ${response.status}: ${text}`);
-    }
-
-    const result = await response.json();
-
-    statusBox.textContent =
-      `Traitement terminé.\n` +
-      `Lignes traitées : ${result.total}\n` +
-      `Lignes enrichies : ${result.enriched}\n` +
-      `Télécharge le fichier : ${result.downloadUrl}`;
-
-    if (result.downloadUrl) {
-      const a = document.createElement("a");
-      a.href = result.downloadUrl;
-      a.textContent = "Télécharger le fichier enrichi";
-      a.target = "_blank";
-      a.style.display = "inline-block";
-      a.style.marginTop = "12px";
-      preview.appendChild(a);
-    }
-  } catch (error) {
-    console.error(error);
-    statusBox.textContent = `Erreur enrichissement : ${error.message}`;
-  }
-}
-
-function escapeHtml(str) {
-  return str
-    .replaceAll("&", "&amp;")
-    .replaceAll("<", "&lt;")
-    .replaceAll(">", "&gt;")
-    .replaceAll('"', "&quot;")
-    .replaceAll("'", "&#039;");
+function escapeHtml(value) {
+  return value
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
+    .replace(/"/g, "&quot;")
+    .replace(/'/g, "&#039;");
 }
