@@ -5,9 +5,10 @@
 const ENRICH_URL        = "https://shy-waterfall-8a1e.streiffnathan-432.workers.dev/api/enrich";
 const CLAUDE_API_URL    = "https://api.anthropic.com/v1/messages";
 const CLAUDE_MODEL      = "claude-sonnet-4-6";
-const ENRICH_BATCH_SIZE = 5;   // entreprises par appel API
-const ENRICH_DELAY_MS   = 2500; // ms entre deux batchs (rate-limit)
-const CACHE_KEY         = "adminia_enrich_cache_v1";
+const ENRICH_BATCH_SIZE = 1;    // 1 entreprise par appel = recherche maximale
+const ENRICH_DELAY_MS   = 1500; // ms entre deux appels
+const MAX_TURNS         = 12;   // tours max pour la boucle web_search
+const CACHE_KEY         = "adminia_enrich_cache_v2";
 const APIKEY_LS_KEY     = "adminia_claude_key";
 
 // ── Définitions des champs cibles (multi-langue) ─────────────
@@ -477,6 +478,7 @@ function universalScan(rawRow, out, allHeaders) {
 
 function inferFromExisting(out) {
   let gained = 0;
+  POSTAL_RE.lastIndex = 0; // reset obligatoire (flag g)
 
   // ── Email → site web ─────────────────────────────────────────
   if (out.email && !out.website) {
@@ -961,6 +963,66 @@ function exportToExcel() {
   showStatus("Fichier exporté : " + originalFileName + "_extrait.xlsx", "ok");
 }
 
+// ── Devinette de domaine (gratuit, sans API) ──────────────────
+//
+// Génère des candidats de domaine à partir du nom de société
+// et teste leur existence via fetch no-cors.
+// Une réponse (même opaque) = le serveur répond = domaine valide.
+
+function normalizeDomainSlug(name) {
+  return name
+    .toLowerCase()
+    // Supprime les formes juridiques
+    .replace(/\b(sa|sàrl|sarl|gmbh|ag|srl|sprl|bv|nv|ltd|inc|llc|corp|cie|co\.?)\b\.?/gi, "")
+    // Supprime les accents
+    .normalize("NFD").replace(/[\u0300-\u036f]/g, "")
+    .replace(/[^a-z0-9\s\-]/g, "")
+    .trim()
+    .replace(/\s+/g, "-")
+    .replace(/-+/g, "-")
+    .replace(/^-+|-+$/g, "");
+}
+
+function buildDomainCandidates(companyName, city) {
+  if (!companyName) return [];
+  const base    = normalizeDomainSlug(companyName);
+  const compact = base.replace(/-/g, "");
+  const first   = base.split("-")[0];
+  const roots   = [...new Set([base, compact, first].filter(r => r.length >= 2))];
+  const tlds    = [".ch", ".com", ".fr", ".de", ".net"];
+  const out     = [];
+  for (const r of roots) {
+    for (const t of tlds) out.push(r + t);
+    if (city) {
+      const c = normalizeDomainSlug(city);
+      if (c.length >= 2) out.push(`${r}-${c}.ch`);
+    }
+  }
+  return [...new Set(out)].slice(0, 10);
+}
+
+async function probeDomain(domain) {
+  try {
+    await fetch(`https://${domain}`, {
+      method: "HEAD",
+      mode: "no-cors",
+      signal: AbortSignal.timeout(3000)
+    });
+    return true;  // réponse reçue = domaine existe
+  } catch { return false; }
+}
+
+async function guessDomainForRow(row) {
+  if (row.website) return null;  // déjà connu
+  const candidates = buildDomainCandidates(row.company, row.city);
+  // Teste tous en parallèle, retourne le premier valide (par ordre de priorité)
+  const checks = await Promise.all(candidates.map(d => probeDomain(d)));
+  for (let i = 0; i < candidates.length; i++) {
+    if (checks[i]) return candidates[i];
+  }
+  return null;
+}
+
 // ── 6. Enrichissement IA direct (Claude + web_search) ────────
 
 // État de la session d'enrichissement
@@ -1023,127 +1085,176 @@ function missingFields(row) {
 // Envoyé à Claude pour chaque batch de ENRICH_BATCH_SIZE entreprises.
 // Focalise la recherche sur les sources suisses connues.
 
-function buildPrompt(batch) {
-  const items = batch.map((row, i) => {
-    const known = SUMMARY_FIELDS
-      .filter(k => row[k] && row[k] !== "")
-      .map(k => `${k}: "${row[k]}"`)
-      .join(", ");
-    const needed = missingFields(row).join(", ");
-    return `[${i}] société="${row.company || "?"}"${row.city ? ` ville="${row.city}"` : ""}${row.region ? ` région="${row.region}"` : ""}
-    connu: ${known || "—"}
-    à trouver: ${needed}`;
-  }).join("\n\n");
+// Prompt ultra-ciblé pour 1 seule entreprise (batch_size = 1)
+function buildPrompt(row) {
+  const known = SUMMARY_FIELDS
+    .filter(k => row[k] && row[k] !== "")
+    .map(k => `${k}: "${row[k]}"`)
+    .join(" | ") || "—";
 
-  return `Tu es un chercheur de données B2B suisse professionnel.
-Pour chaque entreprise ci-dessous, effectue des recherches web pour trouver les données manquantes.
+  const needed = missingFields(row);
 
-STRATÉGIE DE RECHERCHE (dans l'ordre) :
-1. Google : "[nom société] [ville] contact Switzerland"
-2. zefix.ch / moneyhouse.ch → toujours l'adresse officielle + IDE des sociétés suisses
-3. local.ch / search.ch → numéro de téléphone + adresse
-4. Site web officiel → page /contact, /impressum ou /about-us pour email et téléphone
-5. LinkedIn company page → lien vers site web
+  // Génère les domaines candidats pour aider Claude
+  const candidateList = buildDomainCandidates(row.company, row.city)
+    .slice(0, 4).join(", ");
 
-RÈGLES :
-- website : domaine sans protocole (ex: acme.ch, pas https://www.acme.ch)
-- phone : format international suisse +41 XX XXX XX XX ; français +33 X XX XX XX XX
-- email : email professionnel réel (jamais info@example.com ou inventé)
-- postal_code : NPA suisse 4 chiffres ou CP français 5 chiffres
-- country : code ISO 2 lettres (CH, FR, DE, IT, BE…)
-- Si données introuvables après recherche → null (ne jamais inventer)
-- Effectue au moins 2-3 recherches web par entreprise avant de déclarer null
+  return `Tu es un expert en recherche de données B2B suisses. Utilise l'outil web_search pour trouver les données manquantes de cette entreprise.
 
-ENTREPRISES :
-${items}
+ENTREPRISE : "${row.company || "?"}"
+VILLE/RÉGION : ${row.city || row.region || "inconnue"}
+CONNU : ${known}
+À TROUVER : ${needed.join(", ")}
+DOMAINES À TESTER : ${candidateList || "—"}
 
-Réponds UNIQUEMENT avec un tableau JSON valide (sans texte avant ni après) :
-[
-  {"idx":0,"website":…,"email":…,"phone":…,"mobile":…,"address":…,"postal_code":…,"city":…,"country":…},
-  …
-]`;
+SÉQUENCE DE RECHERCHES (exécute-les TOUTES avant de répondre) :
+${needed.includes("website") ? `1. Teste directement : ${candidateList} — vérifie lequel fonctionne
+2. Recherche : "${row.company} ${row.city || ""} site officiel"` : ""}
+${needed.includes("address") || needed.includes("postal_code") || needed.includes("city") ? `3. Recherche zefix.ch : "${row.company} ${row.city || ""}" → adresse officielle + NPA
+4. Recherche moneyhouse.ch : "${row.company}" → adresse + téléphone` : ""}
+${needed.includes("phone") || needed.includes("mobile") ? `5. Recherche local.ch : "${row.company} ${row.city || ""}" → numéro de téléphone direct
+6. Recherche search.ch : "${row.company}" → téléphone + adresse` : ""}
+${needed.includes("email") ? `7. Visite la page /contact ou /impressum du site trouvé → cherche un email réel
+8. Recherche : "${row.company} contact email ${row.city || ""}"` : ""}
+
+RÈGLES STRICTES :
+- website : domaine SEUL sans https:// ni www (ex: acme.ch)
+- phone : +41 XX XXX XX XX pour Suisse, +33 X XX XX XX XX pour France
+- email : email professionnel RÉEL trouvé sur une page — jamais inventé
+- postal_code : 4 chiffres (CH) ou 5 chiffres (FR/DE)
+- country : code ISO 2 lettres — CH si adresse suisse
+- Mets null si introuvable après recherche sérieuse
+
+Réponds UNIQUEMENT avec ce JSON (sans texte autour) :
+{"website":…,"email":…,"phone":…,"mobile":…,"address":…,"postal_code":…,"city":…,"country":…}`;
 }
 
-// ── Appel Claude API ──────────────────────────────────────────
+// ── Appel Claude API avec boucle multi-tour web_search ────────
+//
+// web_search_20250305 est un outil "server-side" : Anthropic exécute
+// les recherches, mais l'API retourne quand même stop_reason="tool_use"
+// entre chaque recherche. Il faut renvoyer un tool_result vide pour
+// continuer jusqu'à stop_reason="end_turn".
 
 async function callClaudeAPI(apiKey, prompt) {
-  const resp = await fetch(CLAUDE_API_URL, {
-    method: "POST",
-    headers: {
-      "Content-Type": "application/json",
-      "x-api-key": apiKey,
-      "anthropic-version": "2023-06-01",
-      "anthropic-dangerous-direct-browser-access": "true"
-    },
-    body: JSON.stringify({
-      model: CLAUDE_MODEL,
-      max_tokens: 4096,
-      tools: [{
-        type: "web_search_20250305",
-        name: "web_search",
-        max_uses: 15
-      }],
-      messages: [{ role: "user", content: prompt }]
-    })
-  });
+  const messages = [{ role: "user", content: prompt }];
 
-  if (resp.status === 429) {
-    // Rate limit — attendre et réessayer
-    const retry = parseInt(resp.headers.get("retry-after") || "30", 10);
-    logEnrich(`⏳ Rate limit — reprise dans ${retry}s…`);
-    await sleep(retry * 1000);
-    return callClaudeAPI(apiKey, prompt);
+  for (let turn = 0; turn < MAX_TURNS; turn++) {
+    const resp = await fetch(CLAUDE_API_URL, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        "x-api-key": apiKey,
+        "anthropic-version": "2023-06-01",
+        "anthropic-dangerous-direct-browser-access": "true"
+      },
+      body: JSON.stringify({
+        model: CLAUDE_MODEL,
+        max_tokens: 2048,
+        tools: [{ type: "web_search_20250305", name: "web_search" }],
+        messages
+      })
+    });
+
+    if (resp.status === 429) {
+      const retry = parseInt(resp.headers.get("retry-after") || "30", 10);
+      logEnrich(`⏳ Rate limit — reprise dans ${retry}s…`);
+      await sleep(retry * 1000);
+      continue; // réessaie sans incrémenter turn
+    }
+
+    if (!resp.ok) {
+      const body = await resp.text();
+      throw new Error(`Claude ${resp.status}: ${body.slice(0, 200)}`);
+    }
+
+    const data = await resp.json();
+
+    // Réponse finale : retourne
+    if (data.stop_reason === "end_turn") return data;
+
+    // L'outil web_search a été déclenché : renvoie un tool_result vide
+    // pour que le modèle puisse continuer avec les résultats
+    if (data.stop_reason === "tool_use") {
+      const toolUses = (data.content || []).filter(b => b.type === "tool_use");
+      if (!toolUses.length) return data; // aucun tool_use → on arrête
+
+      messages.push({ role: "assistant", content: data.content });
+      messages.push({
+        role: "user",
+        content: toolUses.map(tu => ({
+          type: "tool_result",
+          tool_use_id: tu.id,
+          content: "" // Anthropic gère l'exécution côté serveur
+        }))
+      });
+      continue;
+    }
+
+    return data; // autre stop_reason inattendu
   }
 
-  if (!resp.ok) {
-    const body = await resp.text();
-    throw new Error(`Claude API ${resp.status}: ${body.slice(0, 300)}`);
-  }
-
-  return resp.json();
+  throw new Error("Trop de tours (web_search loop)");
 }
 
 // ── Extraction du JSON dans la réponse Claude ─────────────────
+//
+// Cherche un objet JSON {} ou un tableau [] dans le texte de réponse.
+// Prend le dernier bloc "text" (celui qui contient la réponse finale).
 
 function extractJSON(apiResponse) {
-  // Cherche le dernier bloc de texte dans les content blocks
-  const blocks = apiResponse.content || [];
-  let text = "";
-  for (const b of blocks) {
-    if (b.type === "text") text = b.text; // prend le dernier
+  const blocks = (apiResponse?.content || []);
+  // Concatène tous les blocs texte (en cas de plusieurs)
+  const text = blocks.filter(b => b.type === "text").map(b => b.text).join("\n");
+
+  // Essaie d'abord un objet simple {} (prompt batch=1)
+  const objMatch = text.match(/\{[^{}]*(?:\{[^{}]*\}[^{}]*)?\}/s);
+  if (objMatch) {
+    try {
+      const obj = JSON.parse(objMatch[0]);
+      if (typeof obj === "object" && !Array.isArray(obj)) {
+        return { idx: 0, ...obj }; // enveloppe en objet indexé
+      }
+    } catch {}
   }
 
-  // Extrait le tableau JSON (peut être entouré de texte parasite)
-  const m = text.match(/\[[\s\S]*\]/);
-  if (!m) return null;
-  try { return JSON.parse(m[0]); }
-  catch { return null; }
+  // Fallback : tableau []
+  const arrMatch = text.match(/\[[\s\S]*?\]/);
+  if (arrMatch) {
+    try {
+      const arr = JSON.parse(arrMatch[0]);
+      return Array.isArray(arr) ? arr[0] : arr;
+    } catch {}
+  }
+
+  return null;
 }
 
-// ── Application des résultats sur extractedRows ───────────────
+// ── Application d'un résultat sur une ligne ───────────────────
 
-function applyResults(batch, results, cache) {
+const ENRICHABLE = ["website","email","email2","phone","mobile",
+                    "address","postal_code","city","country","linkedin"];
+
+function applyResult(row, item, cache) {
+  if (!item) return 0;
   let filled = 0;
-  for (const item of results) {
-    const row = batch[item.idx];
-    if (!row) continue;
 
-    const ENRICHABLE = ["website","email","email2","phone","mobile",
-                        "address","postal_code","city","country","linkedin"];
-    for (const key of ENRICHABLE) {
-      const val = item[key];
-      if (val && val !== "null" && String(val).trim() !== "" && !row[key]) {
-        row[key] = normalizeValue(val, FIELDS.find(f => f.key === key)?.type || "text");
-        filled++;
-      }
-    }
+  for (const key of ENRICHABLE) {
+    const raw = item[key];
+    if (!raw || raw === "null" || String(raw).trim() === "") continue;
+    if (row[key]) continue; // ne pas écraser une valeur existante
 
-    // Re-run inferences now that more data is known
-    inferFromExisting(row);
-    cache[cacheKey(row)] = Object.fromEntries(
-      ENRICHABLE.map(k => [k, row[k] || ""])
-    );
+    const val = normalizeValue(raw, FIELDS.find(f => f.key === key)?.type || "text");
+    if (val) { row[key] = val; filled++; }
   }
+
+  // Re-déduction locale après enrichissement
+  inferFromExisting(row);
+
+  // Cache seulement si au moins un champ a été rempli
+  if (filled > 0) {
+    cache[cacheKey(row)] = Object.fromEntries(ENRICHABLE.map(k => [k, row[k] || ""]));
+  }
+
   return filled;
 }
 
@@ -1170,81 +1281,90 @@ async function startDirectEnrich() {
 
   const cache = loadCache();
 
-  // Sélectionne uniquement les lignes avec des champs manquants
   const toProcess = extractedRows.filter(r => missingFields(r).length > 0);
   let done = 0;
   let totalFilled = 0;
-  let skipped = 0;
+  let cacheHits = 0;
 
-  logEnrich(`🚀 ${toProcess.length} entreprises à enrichir (${extractedRows.length - toProcess.length} déjà complètes)`);
+  logEnrich(`🚀 ${toProcess.length} entreprises à traiter (${extractedRows.length - toProcess.length} complètes)`);
 
-  for (let i = 0; i < toProcess.length; i += ENRICH_BATCH_SIZE) {
+  // ── Passe A : devinette de domaine (gratuite, sans API) ──────
+  logEnrich(`🌐 Passe A : test de domaines .ch/.com pour chaque société…`);
+  let domainFound = 0;
+  for (const row of toProcess) {
     if (enrichStopped) break;
-
-    // Gestion de la pause
-    while (enrichPaused) {
-      await sleep(500);
-      if (enrichStopped) break;
-    }
-    if (enrichStopped) break;
-
-    const batch = toProcess.slice(i, i + ENRICH_BATCH_SIZE);
-
-    // Vérifie le cache pour chaque ligne du batch
-    const toFetch = [];
-    for (const row of batch) {
-      const ck = cacheKey(row);
-      if (cache[ck]) {
-        // Applique le cache directement
-        const cached = cache[ck];
-        for (const [k, v] of Object.entries(cached)) {
-          if (v && !row[k]) { row[k] = v; totalFilled++; }
-        }
-        skipped++;
-      } else {
-        toFetch.push(row);
-      }
-    }
-
-    if (toFetch.length > 0) {
-      try {
-        const names = toFetch.map(r => r.company || "?").join(", ");
-        logEnrich(`🔍 [${i + 1}–${Math.min(i + ENRICH_BATCH_SIZE, toProcess.length)}/${toProcess.length}] ${names}`);
-
-        const prompt   = buildPrompt(toFetch);
-        const response = await callClaudeAPI(apiKey, prompt);
-        const results  = extractJSON(response);
-
-        if (results) {
-          const gained = applyResults(toFetch, results, cache);
-          totalFilled += gained;
-          saveCache(cache);
-          logEnrich(`  ✓ +${gained} cellules remplies`);
-        } else {
-          logEnrich(`  ⚠ Réponse non parsable — batch ignoré`);
-        }
-      } catch (err) {
-        logEnrich(`  ✗ Erreur : ${err.message}`);
-        console.error(err);
-      }
-    }
-
-    done += batch.length;
-    updateEnrichProgress(done, toProcess.length);
-
-    // Délai entre batchs (sauf pour le dernier)
-    if (i + ENRICH_BATCH_SIZE < toProcess.length && !enrichStopped) {
-      await sleep(ENRICH_DELAY_MS);
+    const domain = await guessDomainForRow(row);
+    if (domain) {
+      row.website = domain;
+      inferFromExisting(row); // email → website etc.
+      domainFound++;
     }
   }
+  logEnrich(`  ✓ ${domainFound} sites web trouvés par devinette`);
+  if (domainFound > 0) { showResults(); }
 
-  const finalMsg = enrichStopped
-    ? `Arrêté. ${totalFilled} cellules enrichies (${skipped} depuis cache).`
-    : `Terminé. ${totalFilled} cellules enrichies sur ${toProcess.length} entreprises.`;
+  // ── Passe B : enrichissement Claude IA ligne par ligne ────────
+  logEnrich(`🤖 Passe B : enrichissement Claude avec web_search…`);
 
-  document.getElementById("enrichStatus").innerHTML =
-    `<span class="ok">${escapeHtml(finalMsg)}</span>`;
+  for (let i = 0; i < toProcess.length; i++) {
+    if (enrichStopped) break;
+    while (enrichPaused) { await sleep(400); if (enrichStopped) break; }
+    if (enrichStopped) break;
 
+    const row = toProcess[i];
+
+    // Vérifie le cache
+    const ck = cacheKey(row);
+    if (cache[ck]) {
+      for (const [k, v] of Object.entries(cache[ck])) {
+        if (v && !row[k]) { row[k] = v; totalFilled++; }
+      }
+      cacheHits++;
+      done++;
+      updateEnrichProgress(done, toProcess.length);
+      continue;
+    }
+
+    // Si tous les champs sont déjà remplis, on passe
+    if (missingFields(row).length === 0) {
+      done++;
+      updateEnrichProgress(done, toProcess.length);
+      continue;
+    }
+
+    try {
+      const label = `[${i + 1}/${toProcess.length}] ${row.company || "?"}`;
+      logEnrich(`🔍 ${label}`);
+
+      const prompt   = buildPrompt(row);
+      const response = await callClaudeAPI(apiKey, prompt);
+      const result   = extractJSON(response);
+      const gained   = applyResult(row, result, cache);
+
+      totalFilled += gained;
+      if (gained > 0) saveCache(cache);
+
+      // Log des champs trouvés
+      const found = ENRICHABLE.filter(k => result && result[k] && result[k] !== "null").join(", ");
+      logEnrich(gained > 0
+        ? `  ✓ +${gained} champs : ${found}`
+        : `  — rien trouvé`
+      );
+    } catch (err) {
+      logEnrich(`  ✗ ${err.message.slice(0, 80)}`);
+      console.error(err);
+    }
+
+    done++;
+    updateEnrichProgress(done, toProcess.length);
+    if (i < toProcess.length - 1 && !enrichStopped) await sleep(ENRICH_DELAY_MS);
+  }
+
+  const summary = enrichStopped
+    ? `Arrêté — ${totalFilled} champs enrichis, ${domainFound} sites devinés.`
+    : `Terminé — ${totalFilled} champs enrichis, ${domainFound} sites devinés (${cacheHits} depuis cache).`;
+
+  document.getElementById("enrichStatus").innerHTML = `<span class="ok">${escapeHtml(summary)}</span>`;
   updateCtrlBtns("stopped");
   document.getElementById("enrichDirectBtn").disabled = false;
   showResults();
