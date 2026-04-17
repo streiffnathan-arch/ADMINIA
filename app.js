@@ -664,10 +664,32 @@ let sheetName = "";
 // ── Initialisation ────────────────────────────────────────────
 
 document.addEventListener("DOMContentLoaded", () => {
+  // File import
   document.getElementById("fileInput").addEventListener("change", handleFile);
   document.getElementById("extractBtn").addEventListener("click", doExtract);
   document.getElementById("exportLocalBtn").addEventListener("click", exportToExcel);
-  document.getElementById("enrichBtn").addEventListener("click", doEnrich);
+
+  // Tab navigation
+  document.querySelectorAll(".tab-btn").forEach(btn => {
+    btn.addEventListener("click", () => switchTab(btn.dataset.tab));
+  });
+
+  // Import tab buttons
+  document.getElementById("goToDbBtn").addEventListener("click", () => switchTab("database"));
+  document.getElementById("enrichBtn").addEventListener("click", () => {
+    switchTab("enrich");
+    doEnrich();
+  });
+
+  // Database tab buttons
+  document.getElementById("dbExportBtn").addEventListener("click", exportToExcel);
+  document.getElementById("dbEnrichBtn").addEventListener("click", () => {
+    switchTab("enrich");
+    doEnrich();
+  });
+  document.getElementById("dbSearch").addEventListener("input", renderDatabase);
+  document.getElementById("dbFilter").addEventListener("change", renderDatabase);
+
   // enrichDirectBtn est branché dynamiquement dans doEnrich()
 });
 
@@ -679,6 +701,7 @@ function handleFile(e) {
 
   originalFileName = file.name.replace(/\.[^.]+$/, "");
   document.getElementById("fileLabel").textContent = file.name;
+  document.getElementById("sheetSelectorWrap").style.display = "none";
 
   const reader = new FileReader();
   reader.onload = function (ev) {
@@ -687,21 +710,13 @@ function handleFile(e) {
 
       const data = new Uint8Array(ev.target.result);
       wb = XLSX.read(data, { type: "array" });
-      sheetName = wb.SheetNames[0];
-      const ws = wb.Sheets[sheetName];
-      rawRows = XLSX.utils.sheet_to_json(ws, { defval: "" });
 
-      if (!rawRows.length) throw new Error("Fichier vide ou non lisible");
-
-      allHeaders = Object.keys(rawRows[0]);
-      columnMapping = detectColumnMapping(allHeaders, rawRows);
-
-      const detected = Object.values(columnMapping).filter(Boolean).length;
-      document.getElementById("fileInfo").textContent =
-        `${file.name} — ${rawRows.length} lignes, ${allHeaders.length} colonnes, ${detected} champs détectés`;
-
-      showStatus(`Fichier chargé : ${rawRows.length} lignes.`, "ok");
-      showMappingUI();
+      if (wb.SheetNames.length > 1) {
+        showSheetSelector(wb.SheetNames, file.name);
+      } else {
+        sheetName = wb.SheetNames[0];
+        loadSheet(file.name);
+      }
     } catch (err) {
       showStatus("Erreur lecture : " + err.message, "err");
       console.error(err);
@@ -709,6 +724,43 @@ function handleFile(e) {
   };
   reader.onerror = () => showStatus("Erreur de lecture du fichier", "err");
   reader.readAsArrayBuffer(file);
+}
+
+function showSheetSelector(sheets, fileName) {
+  const wrap = document.getElementById("sheetSelectorWrap");
+  const sel  = document.getElementById("sheetSelect");
+  sel.innerHTML = sheets.map(s =>
+    `<option value="${escapeHtml(s)}">${escapeHtml(s)}</option>`
+  ).join("");
+  wrap.style.display = "flex";
+  document.getElementById("sheetConfirmBtn").onclick = () => {
+    sheetName = document.getElementById("sheetSelect").value;
+    wrap.style.display = "none";
+    loadSheet(fileName);
+  };
+  showStatus(`${sheets.length} onglets détectés — choisissez celui à importer.`, "ok");
+}
+
+function loadSheet(fileName) {
+  try {
+    const ws = wb.Sheets[sheetName];
+    rawRows = XLSX.utils.sheet_to_json(ws, { defval: "" });
+
+    if (!rawRows.length) throw new Error(`Onglet "${sheetName}" vide ou non lisible`);
+
+    allHeaders = Object.keys(rawRows[0]);
+    columnMapping = detectColumnMapping(allHeaders, rawRows);
+
+    const detected = Object.values(columnMapping).filter(Boolean).length;
+    document.getElementById("fileInfo").textContent =
+      `${fileName} — onglet : "${sheetName}" — ${rawRows.length} lignes, ${allHeaders.length} colonnes, ${detected} champs détectés`;
+
+    showStatus(`Fichier chargé : ${rawRows.length} lignes depuis "${sheetName}".`, "ok");
+    showMappingUI();
+  } catch (err) {
+    showStatus("Erreur lecture : " + err.message, "err");
+    console.error(err);
+  }
 }
 
 // ── 2. Interface de mapping des colonnes ──────────────────────
@@ -829,6 +881,8 @@ function doExtract() {
   const afterFilled = countFilled(extractedRows);
 
   showResults({ baseFilled, afterFilled, scanGain, inferGain });
+  updateDatabaseBadge();
+  renderDatabase();
 }
 
 function countFilled(rows) {
@@ -902,6 +956,7 @@ function showResults({ baseFilled = null, afterFilled = null, scanGain = 0, infe
   section.style.display = "block";
   section.scrollIntoView({ behavior: "smooth" });
   showStatus("Extraction terminée.", "ok");
+  renderDatabase();
 }
 
 function renderPreview(rows, fieldKeys) {
@@ -1043,11 +1098,11 @@ function cacheKey(row) {
 
 // Ouvre l'étape enrichissement et branche les contrôles
 function doEnrich() {
-  if (!extractedRows.length) return;
-
-  const section = document.getElementById("step-enrich");
-  section.style.display = "block";
-  section.scrollIntoView({ behavior: "smooth" });
+  if (!extractedRows.length) {
+    showStatus("Importez d'abord un fichier Excel.", "err");
+    switchTab("import");
+    return;
+  }
 
   // Restaure la clé API sauvegardée
   const saved = localStorage.getItem(APIKEY_LS_KEY) || "";
@@ -1368,6 +1423,7 @@ async function startDirectEnrich() {
   updateCtrlBtns("stopped");
   document.getElementById("enrichDirectBtn").disabled = false;
   showResults();
+  renderDatabase();
 }
 
 function updateEnrichProgress(done, total) {
@@ -1387,6 +1443,121 @@ function logEnrich(msg) {
 }
 
 function sleep(ms) { return new Promise(r => setTimeout(r, ms)); }
+
+// ── Navigation par onglets ────────────────────────────────────
+
+function switchTab(name) {
+  document.querySelectorAll(".tab-btn").forEach(b =>
+    b.classList.toggle("active", b.dataset.tab === name)
+  );
+  document.querySelectorAll(".tab-panel").forEach(p =>
+    p.classList.toggle("active", p.id === `tab-${name}`)
+  );
+  if (name === "database") renderDatabase();
+}
+
+// ── Onglet Client Database ────────────────────────────────────
+
+const DB_DISPLAY_FIELDS = ["company", "contact", "email", "phone", "website", "address", "city", "country"];
+
+function updateDatabaseBadge() {
+  const badge = document.getElementById("dbBadge");
+  if (!badge) return;
+  const count = extractedRows.length;
+  badge.textContent = count;
+  badge.style.display = count > 0 ? "inline" : "none";
+}
+
+function renderDatabase() {
+  const wrap = document.getElementById("dbTableWrap");
+  if (!wrap) return;
+
+  if (!extractedRows.length) {
+    wrap.innerHTML = `<div class="db-empty"><p>Aucun client chargé.<br>Commencez par importer un fichier Excel dans l'onglet <strong>Import</strong>.</p></div>`;
+    document.getElementById("dbStats").innerHTML = "";
+    document.getElementById("dbCount").textContent = "0 client(s)";
+    return;
+  }
+
+  const search = (document.getElementById("dbSearch")?.value || "").toLowerCase().trim();
+  const filter = document.getElementById("dbFilter")?.value || "all";
+
+  const scored = extractedRows.map(row => {
+    const filled = SUMMARY_FIELDS.filter(k => row[k] && row[k] !== "").length;
+    return { row, score: Math.round((filled / SUMMARY_FIELDS.length) * 100) };
+  });
+
+  const filtered = scored.filter(({ row, score }) => {
+    if (filter === "complete"   && score < 80)  return false;
+    if (filter === "incomplete" && score >= 80) return false;
+    if (search) {
+      const hay = DB_DISPLAY_FIELDS.map(k => (row[k] || "").toLowerCase()).join(" ");
+      if (!hay.includes(search)) return false;
+    }
+    return true;
+  });
+
+  document.getElementById("dbCount").textContent = `${filtered.length} client(s)`;
+  renderDbStats(scored);
+
+  if (!filtered.length) {
+    wrap.innerHTML = `<div class="db-empty"><p>Aucun résultat pour cette recherche.</p></div>`;
+    return;
+  }
+
+  let html = '<table class="db-table"><thead><tr><th>Score</th>';
+  for (const key of DB_DISPLAY_FIELDS) {
+    const field = FIELDS.find(f => f.key === key);
+    html += `<th>${escapeHtml(field ? field.label : key)}</th>`;
+  }
+  html += '</tr></thead><tbody>';
+
+  for (const { row, score } of filtered) {
+    const cls = score >= 80 ? "score-high" : score >= 40 ? "score-medium" : "score-low";
+    html += `<tr><td class="cell-score"><span class="score-pill ${cls}">${score}%</span></td>`;
+    for (const key of DB_DISPLAY_FIELDS) {
+      const val = row[key] || "";
+      html += val ? `<td>${escapeHtml(val)}</td>` : `<td class="cell-empty"></td>`;
+    }
+    html += "</tr>";
+  }
+
+  html += "</tbody></table>";
+  wrap.innerHTML = html;
+}
+
+function renderDbStats(scored) {
+  const el = document.getElementById("dbStats");
+  if (!el) return;
+  const total      = scored.length;
+  const complete   = scored.filter(s => s.score >= 80).length;
+  const partial    = scored.filter(s => s.score >= 40 && s.score < 80).length;
+  const incomplete = scored.filter(s => s.score < 40).length;
+  const avg        = total > 0 ? Math.round(scored.reduce((a, s) => a + s.score, 0) / total) : 0;
+
+  el.innerHTML = `
+    <div class="db-stat-card">
+      <span class="db-stat-num">${total}</span>
+      <span class="db-stat-lbl">Total</span>
+    </div>
+    <div class="db-stat-card green">
+      <span class="db-stat-num">${complete}</span>
+      <span class="db-stat-lbl">Complets ≥80%</span>
+    </div>
+    <div class="db-stat-card amber">
+      <span class="db-stat-num">${partial}</span>
+      <span class="db-stat-lbl">Partiels</span>
+    </div>
+    <div class="db-stat-card red">
+      <span class="db-stat-num">${incomplete}</span>
+      <span class="db-stat-lbl">Incomplets</span>
+    </div>
+    <div class="db-stat-card purple">
+      <span class="db-stat-num">${avg}%</span>
+      <span class="db-stat-lbl">Score moyen</span>
+    </div>
+  `;
+}
 
 // ── Utilitaires ───────────────────────────────────────────────
 
