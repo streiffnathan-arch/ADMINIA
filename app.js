@@ -1179,8 +1179,8 @@ RÈGLES STRICTES :
 - country : code ISO 2 lettres — CH si adresse suisse
 - Mets null si introuvable après recherche sérieuse
 
-Réponds UNIQUEMENT avec ce JSON (sans texte autour) :
-{"website":…,"email":…,"phone":…,"mobile":…,"address":…,"postal_code":…,"city":…,"country":…}`;
+Réponds UNIQUEMENT avec le JSON brut ci-dessous — AUCUN texte avant ou après, AUCUN bloc markdown, AUCUN \`\`\`json :
+{"website":null,"email":null,"phone":null,"mobile":null,"address":null,"postal_code":null,"city":null,"country":null}`;
 }
 
 // ── Appel Claude API avec boucle multi-tour web_search ────────
@@ -1266,34 +1266,74 @@ async function _callClaude(apiKey, prompt, useWebSearch) {
 
 // ── Extraction du JSON dans la réponse Claude ─────────────────
 //
-// Cherche un objet JSON {} ou un tableau [] dans le texte de réponse.
-// Prend le dernier bloc "text" (celui qui contient la réponse finale).
+// 4 tentatives dans l'ordre :
+//  1. Blocs markdown ```json ... ```
+//  2. Texte entier s'il commence par { ou [
+//  3. Premier {} équilibré (gère n'importe quelle profondeur)
+//  4. Premier [] équilibré (fallback tableau)
 
 function extractJSON(apiResponse) {
   const blocks = (apiResponse?.content || []);
-  // Concatène tous les blocs texte (en cas de plusieurs)
   const text = blocks.filter(b => b.type === "text").map(b => b.text).join("\n");
 
-  // Essaie d'abord un objet simple {} (prompt batch=1)
-  const objMatch = text.match(/\{[^{}]*(?:\{[^{}]*\}[^{}]*)?\}/s);
-  if (objMatch) {
+  // 1. Markdown code fence
+  const fenceMatch = text.match(/```(?:json)?\s*([\s\S]*?)```/i);
+  if (fenceMatch) {
     try {
-      const obj = JSON.parse(objMatch[0]);
-      if (typeof obj === "object" && !Array.isArray(obj)) {
-        return { idx: 0, ...obj }; // enveloppe en objet indexé
-      }
+      const obj = JSON.parse(fenceMatch[1].trim());
+      if (typeof obj === "object" && obj !== null)
+        return Array.isArray(obj) ? obj[0] : obj;
     } catch {}
   }
 
-  // Fallback : tableau []
-  const arrMatch = text.match(/\[[\s\S]*?\]/);
-  if (arrMatch) {
+  // 2. Texte brut qui commence par { ou [
+  const trimmed = text.trim();
+  if (trimmed.startsWith("{") || trimmed.startsWith("[")) {
     try {
-      const arr = JSON.parse(arrMatch[0]);
-      return Array.isArray(arr) ? arr[0] : arr;
+      const obj = JSON.parse(trimmed);
+      return Array.isArray(obj) ? obj[0] : obj;
     } catch {}
   }
 
+  // 3. Premier objet {} équilibré (profondeur quelconque)
+  const obj = extractBalanced(text, "{", "}");
+  if (obj !== null) {
+    try {
+      const parsed = JSON.parse(obj);
+      if (typeof parsed === "object" && !Array.isArray(parsed)) return parsed;
+    } catch {}
+  }
+
+  // 4. Premier tableau [] équilibré
+  const arr = extractBalanced(text, "[", "]");
+  if (arr !== null) {
+    try {
+      const parsed = JSON.parse(arr);
+      return Array.isArray(parsed) ? parsed[0] : parsed;
+    } catch {}
+  }
+
+  return null;
+}
+
+function extractBalanced(text, open, close) {
+  const start = text.indexOf(open);
+  if (start === -1) return null;
+  let depth = 0;
+  let inStr = false;
+  let escape = false;
+  for (let i = start; i < text.length; i++) {
+    const c = text[i];
+    if (escape)          { escape = false; continue; }
+    if (c === "\\")      { escape = true;  continue; }
+    if (c === '"')       { inStr = !inStr; continue; }
+    if (inStr)           continue;
+    if (c === open)      depth++;
+    else if (c === close) {
+      depth--;
+      if (depth === 0) return text.slice(start, i + 1);
+    }
+  }
   return null;
 }
 
@@ -1407,12 +1447,17 @@ async function startDirectEnrich() {
       const prompt   = buildPrompt(row);
       const response = await callClaudeAPI(apiKey, prompt);
       const result   = extractJSON(response);
+
+      if (!result) {
+        const raw = (response?.content || []).filter(b => b.type === "text").map(b => b.text).join("").slice(0, 120);
+        logEnrich(`  ⚠ JSON non parsé — réponse brute : ${raw}`);
+      }
+
       const gained   = applyResult(row, result, cache);
 
       totalFilled += gained;
       if (gained > 0) saveCache(cache);
 
-      // Log des champs trouvés
       const found = ENRICHABLE.filter(k => result && result[k] && result[k] !== "null").join(", ");
       logEnrich(gained > 0
         ? `  ✓ +${gained} champs : ${found}`
