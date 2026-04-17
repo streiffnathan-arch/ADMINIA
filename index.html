@@ -3,55 +3,165 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>ADMINIA — Extraction données clients</title>
+  <title>ADMINIA</title>
   <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
   <link rel="stylesheet" href="./style.css" />
 </head>
 <body>
-  <div class="container">
-    <h1>ADMINIA</h1>
-    <p class="subtitle">Extraction maximale de données clients depuis vos fichiers Excel</p>
 
-    <!-- Étape 1 : Chargement -->
-    <section id="step-upload">
-      <h2>1. Charger un fichier</h2>
-      <label class="file-drop" for="fileInput">
-        <span id="fileLabel">Cliquer ou déposer un fichier (.xlsx, .xls, .csv)</span>
-        <input type="file" id="fileInput" accept=".xlsx,.xls,.csv" />
-      </label>
-      <p id="fileInfo" class="muted"></p>
-    </section>
-
-    <!-- Étape 2 : Mapping colonnes -->
-    <section id="step-mapping" style="display:none">
-      <h2>2. Colonnes détectées</h2>
-      <p class="hint">ADMINIA a détecté automatiquement les colonnes. Vérifiez et ajustez si nécessaire.</p>
-      <div id="mappingGrid"></div>
-      <div class="btn-row">
-        <button id="extractBtn" class="btn primary">Extraire les données →</button>
+  <!-- ── Header ── -->
+  <header class="app-header">
+    <div class="header-inner">
+      <div class="header-brand">
+        <span class="brand-name">ADMINIA</span>
+        <span class="brand-tag">Client Data Platform</span>
       </div>
-    </section>
+      <nav class="tab-nav" id="tabNav">
+        <button class="tab-btn active" data-tab="import">
+          <span class="tab-icon">⬆</span> Import
+        </button>
+        <button class="tab-btn" data-tab="database">
+          <span class="tab-icon">🗄</span> Client Database
+          <span class="tab-badge" id="dbBadge" style="display:none">0</span>
+        </button>
+        <button class="tab-btn" data-tab="enrich">
+          <span class="tab-icon">✦</span> Enrichissement IA
+        </button>
+      </nav>
+    </div>
+  </header>
 
-    <!-- Étape 3 : Résultats extraction -->
-    <section id="step-results" style="display:none">
-      <h2>3. Données extraites</h2>
-      <div id="stats" class="stats-bar"></div>
-      <div id="fillRates"></div>
-      <div id="preview"></div>
-      <div class="btn-row">
-        <button id="exportLocalBtn" class="btn secondary">Exporter Excel</button>
-        <button id="enrichBtn" class="btn primary">Enrichir les données manquantes via IA →</button>
+  <main class="app-main">
+
+    <!-- ══════════════════════════════════════════════════════════
+         ONGLET : IMPORT
+    ══════════════════════════════════════════════════════════ -->
+    <div class="tab-panel active" id="tab-import">
+
+      <section id="step-upload">
+        <h2>1. Charger un fichier</h2>
+        <label class="file-drop" for="fileInput">
+          <span class="file-drop-icon">📂</span>
+          <span id="fileLabel">Cliquer ou déposer un fichier (.xlsx, .xls, .csv)</span>
+          <input type="file" id="fileInput" accept=".xlsx,.xls,.csv" />
+        </label>
+        <p id="fileInfo" class="muted"></p>
+        <div id="sheetSelectorWrap" class="sheet-selector-wrap" style="display:none">
+          <label for="sheetSelect">Onglet Excel à utiliser :</label>
+          <select id="sheetSelect" class="map-select"></select>
+          <button id="sheetConfirmBtn" class="btn primary btn-sm">Confirmer →</button>
+        </div>
+      </section>
+
+      <section id="step-mapping" style="display:none">
+        <h2>2. Colonnes détectées</h2>
+        <p class="hint">ADMINIA a détecté automatiquement les colonnes. Vérifiez et ajustez si nécessaire.</p>
+        <div id="mappingGrid"></div>
+        <div class="btn-row">
+          <button id="extractBtn" class="btn primary">Extraire les données →</button>
+        </div>
+      </section>
+
+      <section id="step-results" style="display:none">
+        <h2>3. Aperçu extraction</h2>
+        <div id="stats" class="stats-bar"></div>
+        <div id="fillRates"></div>
+        <div id="preview"></div>
+        <div class="btn-row">
+          <button id="exportLocalBtn" class="btn secondary">Exporter Excel</button>
+          <button id="goToDbBtn"      class="btn secondary">Voir Client Database →</button>
+          <button id="enrichBtn"      class="btn primary">Enrichir les données →</button>
+        </div>
+      </section>
+
+      <div id="status" class="status-box"></div>
+    </div>
+
+    <!-- ══════════════════════════════════════════════════════════
+         ONGLET : CLIENT DATABASE
+    ══════════════════════════════════════════════════════════ -->
+    <div class="tab-panel" id="tab-database">
+
+      <!-- Barre d'outils -->
+      <div class="db-toolbar">
+        <div class="db-toolbar-left">
+          <input type="text" id="dbSearch" class="db-search"
+                 placeholder="Rechercher société, ville, email…" />
+          <select id="dbFilter" class="db-filter-select">
+            <option value="all">Tous les clients</option>
+            <option value="incomplete">Données incomplètes</option>
+            <option value="complete">Données complètes</option>
+          </select>
+        </div>
+        <div class="db-toolbar-right">
+          <span id="dbCount" class="db-count">0 client(s)</span>
+          <button id="dbExportBtn"  class="btn secondary btn-sm">Exporter Excel</button>
+          <button id="dbEnrichBtn"  class="btn primary   btn-sm">Enrichir →</button>
+        </div>
       </div>
-    </section>
 
-    <!-- Étape 4 : Enrichissement IA -->
-    <section id="step-enrich" style="display:none">
-      <h2>4. Enrichissement IA</h2>
-      <div id="enrichStatus" class="status-box"></div>
-    </section>
+      <!-- Stats globales -->
+      <div id="dbStats" class="db-stats-row"></div>
 
-    <div id="status" class="status-box"></div>
-  </div>
+      <!-- Table principale -->
+      <div id="dbTableWrap" class="db-table-wrap">
+        <div class="db-empty">
+          <p>Aucun client chargé.<br>Commencez par importer un fichier Excel dans l'onglet <strong>Import</strong>.</p>
+        </div>
+      </div>
+
+    </div>
+
+    <!-- ══════════════════════════════════════════════════════════
+         ONGLET : ENRICHISSEMENT IA
+    ══════════════════════════════════════════════════════════ -->
+    <div class="tab-panel" id="tab-enrich">
+
+      <section id="step-enrich">
+        <h2>Enrichissement IA</h2>
+
+        <div id="apiKeySection" class="api-key-box">
+          <label class="api-key-label" for="apiKeyInput">
+            Clé API Anthropic (Claude)
+            <span class="hint-inline">Stockée localement — jamais envoyée à des tiers</span>
+          </label>
+          <div class="api-key-row">
+            <input type="password" id="apiKeyInput" class="api-key-input"
+                   placeholder="sk-ant-api03-…" autocomplete="off" />
+            <button id="toggleKeyBtn" class="btn secondary btn-sm">Afficher</button>
+          </div>
+          <p class="hint">
+            Obtenez votre clé sur
+            <a href="https://console.anthropic.com/settings/keys" target="_blank" rel="noopener">
+              console.anthropic.com
+            </a>. Claude effectue des recherches web en temps réel pour chaque entreprise.
+          </p>
+        </div>
+
+        <div class="btn-row" style="margin-top:14px">
+          <button id="enrichDirectBtn" class="btn primary">Lancer l'enrichissement →</button>
+          <button id="pauseBtn"  class="btn secondary" style="display:none">⏸ Pause</button>
+          <button id="resumeBtn" class="btn secondary" style="display:none">▶ Reprendre</button>
+          <button id="stopBtn"   class="btn secondary" style="display:none">⏹ Arrêter</button>
+        </div>
+
+        <div id="enrichProgressBox" style="display:none">
+          <div class="enrich-progress-header">
+            <span id="enrichProgressLabel">0 / 0 entreprises</span>
+            <span id="enrichProgressPct">0%</span>
+          </div>
+          <div class="enrich-bar-bg">
+            <div id="enrichBar" class="enrich-bar" style="width:0%"></div>
+          </div>
+          <div id="enrichLog" class="enrich-log"></div>
+        </div>
+
+        <div id="enrichStatus" class="status-box"></div>
+      </section>
+
+    </div>
+
+  </main>
 
   <script src="./app.js"></script>
 </body>

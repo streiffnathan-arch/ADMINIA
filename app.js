@@ -2,7 +2,14 @@
 // ADMINIA — Extraction maximale de données clients
 // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
-const ENRICH_URL = "https://shy-waterfall-8a1e.streiffnathan-432.workers.dev/api/enrich";
+const ENRICH_URL        = "https://shy-waterfall-8a1e.streiffnathan-432.workers.dev/api/enrich";
+const CLAUDE_API_URL    = "https://api.anthropic.com/v1/messages";
+const CLAUDE_MODEL      = "claude-sonnet-4-6";
+const ENRICH_BATCH_SIZE = 1;    // 1 entreprise par appel = recherche maximale
+const ENRICH_DELAY_MS   = 1500; // ms entre deux appels
+const MAX_TURNS         = 12;   // tours max pour la boucle web_search
+const CACHE_KEY         = "adminia_enrich_cache_v2";
+const APIKEY_LS_KEY     = "adminia_claude_key";
 
 // ── Définitions des champs cibles (multi-langue) ─────────────
 
@@ -227,6 +234,135 @@ const SUMMARY_FIELDS = [
   "address", "postal_code", "city", "country", "website"
 ];
 
+// ── Constantes de post-traitement ────────────────────────────
+
+// Domaines email génériques → ne pas en déduire un site web
+const GENERIC_MAIL_DOMAINS = new Set([
+  "gmail.com","yahoo.com","yahoo.fr","yahoo.ch","hotmail.com","hotmail.fr",
+  "outlook.com","live.com","live.fr","icloud.com","me.com","aol.com",
+  "bluewin.ch","sunrise.ch","hispeed.ch","vtxnet.ch","swisscom.ch",
+  "romandie.com","netplus.ch","gmx.ch","gmx.net","gmx.de","gmx.at",
+  "free.fr","orange.fr","laposte.net","sfr.fr","wanadoo.fr",
+  "proton.me","protonmail.com","pm.me","tutanota.com"
+]);
+
+// Regex de détection dans du texte brut
+const EMAIL_RE  = /[a-zA-Z0-9._%+\-]+@[a-zA-Z0-9.\-]+\.[a-zA-Z]{2,}/g;
+const PHONE_RE  = /(?:(?:\+|00)\d{1,3}[\s.\-]?)?\(?\d{2,4}\)?[\s.\-]?\d{3}[\s.\-]?\d{2}[\s.\-]?\d{2}\b/g;
+const URL_RE    = /(?:https?:\/\/|www\.)[a-zA-Z0-9.\-]+\.[a-zA-Z]{2,}(?:\/[^\s,<>"')\]]*)?/gi;
+const POSTAL_RE = /\b(\d{4,5})\s+((?:[A-ZÀ-Ü\u00C0-\u017E][a-zA-Zà-ü\u00C0-\u017E\s\-]{2,29}))/g;
+
+// NPA suisses → ville (couverture des ~300 NPA les plus fréquents)
+const CH_POSTAL = {
+  "1000":"Lausanne","1003":"Lausanne","1004":"Lausanne","1005":"Lausanne",
+  "1006":"Lausanne","1007":"Lausanne","1008":"Prilly","1009":"Pully",
+  "1010":"Lausanne","1011":"Lausanne","1012":"Lausanne","1015":"Lausanne",
+  "1018":"Lausanne","1020":"Renens","1022":"Chavannes","1023":"Crissier",
+  "1024":"Ecublens","1025":"St-Sulpice","1026":"Echandens","1028":"Préverenges",
+  "1110":"Morges","1162":"St-Prex","1170":"Aubonne","1180":"Rolle",
+  "1196":"Gland","1197":"Prangins","1200":"Genève","1201":"Genève",
+  "1202":"Genève","1203":"Genève","1204":"Genève","1205":"Genève",
+  "1206":"Genève","1207":"Genève","1208":"Genève","1209":"Genève",
+  "1212":"Grand-Lancy","1213":"Petit-Lancy","1214":"Vernier","1215":"Genève",
+  "1217":"Meyrin","1218":"Grand-Saconnex","1219":"Châtelaine","1220":"Les Avanchets",
+  "1225":"Chêne-Bourg","1226":"Thônex","1227":"Carouge","1228":"Plan-les-Ouates",
+  "1231":"Conches","1232":"Confignon","1233":"Bernex","1242":"Satigny",
+  "1245":"Collonge-Bellerive","1246":"Corsier","1290":"Versoix","1292":"Chambésy",
+  "1293":"Bellevue","1294":"Genthod","1295":"Mies","1296":"Coppet",
+  "1297":"Founex","1299":"Crans-près-Céligny","1300":"Eclépens",
+  "1400":"Yverdon-les-Bains","1401":"Yverdon","1450":"Ste-Croix",
+  "1530":"Payerne","1700":"Fribourg","1701":"Fribourg","1702":"Fribourg",
+  "1703":"Fribourg","1705":"Fribourg","1800":"Vevey","1814":"La Tour-de-Peilz",
+  "1820":"Montreux","1844":"Villeneuve","1860":"Aigle","1950":"Sion",
+  "1951":"Sion","1958":"St-Léonard","1960":"Sierre","1963":"Vétroz",
+  "2000":"Neuchâtel","2001":"Neuchâtel","2002":"Neuchâtel","2300":"La Chaux-de-Fonds",
+  "2500":"Biel/Bienne","2502":"Biel/Bienne","2503":"Biel/Bienne","2560":"Nidau",
+  "2800":"Delémont","2900":"Porrentruy","3000":"Bern","3001":"Bern",
+  "3002":"Bern","3003":"Bern","3004":"Bern","3005":"Bern","3006":"Bern",
+  "3007":"Bern","3008":"Bern","3010":"Bern","3011":"Bern","3012":"Bern",
+  "3013":"Bern","3014":"Bern","3015":"Bern","3018":"Bern","3027":"Bern",
+  "3097":"Liebefeld","3098":"Köniz","3100":"Köniz","3110":"Münsingen",
+  "3150":"Schwarzenburg","3172":"Niederwangen","3173":"Oberwangen",
+  "3174":"Thörishaus","3176":"Neuenegg","3177":"Laupen","3250":"Lyss",
+  "3270":"Aarberg","3280":"Murten","3400":"Burgdorf","3600":"Thun",
+  "3601":"Thun","3602":"Thun","3603":"Thun","3604":"Thun","3608":"Thun",
+  "3700":"Spiez","3800":"Interlaken","3900":"Brig","3920":"Zermatt",
+  "3930":"Visp","3960":"Sierre","4000":"Basel","4001":"Basel","4002":"Basel",
+  "4003":"Basel","4004":"Basel","4005":"Basel","4051":"Basel","4052":"Basel",
+  "4053":"Basel","4054":"Basel","4055":"Basel","4056":"Basel","4057":"Basel",
+  "4058":"Basel","4059":"Basel","4102":"Binningen","4103":"Bottmingen",
+  "4104":"Oberwil","4123":"Allschwil","4125":"Riehen","4127":"Birsfelden",
+  "4132":"Muttenz","4133":"Pratteln","4142":"Münchenbuchsee","4153":"Reinach",
+  "4500":"Solothurn","4600":"Olten","4800":"Zofingen","4900":"Langenthal",
+  "4901":"Langenthal","5000":"Aarau","5001":"Aarau","5200":"Brugg",
+  "5210":"Windisch","5300":"Turgi","5400":"Baden","5401":"Baden",
+  "5405":"Dättwil","5408":"Ennetbaden","5600":"Lenzburg","5610":"Wohlen",
+  "5620":"Bremgarten","5700":"Zeihen","6000":"Luzern","6001":"Luzern",
+  "6002":"Luzern","6003":"Luzern","6004":"Luzern","6005":"Luzern",
+  "6006":"Luzern","6010":"Kriens","6020":"Emmenbrücke","6030":"Ebikon",
+  "6032":"Emmen","6033":"Buchrain","6034":"Inwil","6036":"Dierikon",
+  "6039":"Root","6043":"Adligenswil","6045":"Meggen","6048":"Horw",
+  "6060":"Sarnen","6102":"Malters","6110":"Wolhusen","6130":"Willisau",
+  "6210":"Sursee","6300":"Zug","6301":"Zug","6302":"Zug","6303":"Zug",
+  "6304":"Zug","6340":"Baar","6343":"Rotkreuz","6370":"Stans",
+  "6403":"Küssnacht","6410":"Goldau","6430":"Schwyz","6440":"Brunnen",
+  "6460":"Altdorf","6500":"Bellinzona","6512":"Giubiasco","6600":"Locarno",
+  "6648":"Minusio","6700":"Bellinzona","6850":"Mendrisio","6900":"Lugano",
+  "6901":"Lugano","6902":"Lugano","6903":"Lugano","6904":"Lugano",
+  "6905":"Lugano","6906":"Lugano","6907":"Lugano","6912":"Lugano",
+  "6914":"Lugano","6916":"Grancia","6917":"Barbengo","6932":"Breganzona",
+  "6933":"Muzzano","6934":"Bioggio","6942":"Savosa","6943":"Vezia",
+  "6944":"Cureglia","6945":"Origlio","6946":"Ponte Capriasca","6948":"Porza",
+  "6949":"Comano","6950":"Tesserete","6952":"Canobbio","6953":"Lugaggia",
+  "7000":"Chur","7002":"Chur","7004":"Chur","7500":"St. Moritz",
+  "7510":"Champfèr","7560":"Davos","8000":"Zürich","8001":"Zürich",
+  "8002":"Zürich","8003":"Zürich","8004":"Zürich","8005":"Zürich",
+  "8006":"Zürich","8007":"Zürich","8008":"Zürich","8032":"Zürich",
+  "8037":"Zürich","8038":"Zürich","8041":"Zürich","8044":"Zürich",
+  "8045":"Zürich","8046":"Zürich","8047":"Zürich","8048":"Zürich",
+  "8049":"Zürich","8050":"Zürich","8051":"Zürich","8052":"Zürich",
+  "8053":"Zürich","8055":"Zürich","8057":"Zürich","8064":"Zürich",
+  "8102":"Oberengstringen","8103":"Unterengstringen","8105":"Regensdorf",
+  "8108":"Dällikon","8152":"Glattbrugg","8153":"Rümlang","8154":"Oberglatt",
+  "8155":"Niederhasli","8157":"Dielsdorf","8172":"Niederglatt","8180":"Bülach",
+  "8200":"Schaffhausen","8201":"Schaffhausen","8202":"Schaffhausen",
+  "8280":"Kreuzlingen","8400":"Winterthur","8401":"Winterthur",
+  "8402":"Winterthur","8403":"Winterthur","8404":"Winterthur","8406":"Winterthur",
+  "8408":"Winterthur","8500":"Frauenfeld","8570":"Weinfelden","8600":"Dübendorf",
+  "8610":"Uster","8620":"Wetzikon","8630":"Rüti","8700":"Küsnacht",
+  "8702":"Zollikon","8703":"Erlenbach","8704":"Herrliberg","8706":"Meilen",
+  "8800":"Thalwil","8802":"Kilchberg","8803":"Rüschlikon","8804":"Au",
+  "8805":"Richterswil","8810":"Horgen","8820":"Wädenswil","8832":"Wollerau",
+  "8834":"Schindellegi","8840":"Einsiedeln","8902":"Urdorf","8903":"Birmensdorf",
+  "8904":"Aesch","8906":"Bonstetten","8907":"Wettswil","8908":"Hedingen",
+  "8910":"Affoltern am Albis","8952":"Schlieren","8953":"Dietikon","8954":"Geroldswil",
+  "8955":"Oetwil","8962":"Bergdietikon","8963":"Kindhausen","8964":"Rudolfstetten",
+  "8965":"Berikon","8966":"Oberwil","8967":"Niederwil","8972":"Obfelden",
+  "8900":"Uster","9000":"St. Gallen","9001":"St. Gallen","9004":"St. Gallen",
+  "9006":"St. Gallen","9008":"St. Gallen","9010":"St. Gallen","9011":"St. Gallen",
+  "9012":"St. Gallen","9013":"St. Gallen","9014":"St. Gallen","9015":"St. Gallen",
+  "9016":"St. Gallen","9030":"Abtwil","9032":"Engelburg","9033":"Untereggen",
+  "9034":"Eggersriet","9100":"Herisau","9200":"Gossau","9201":"Gossau",
+  "9205":"Gossau","9300":"Wittenbach","9400":"Rorschach","9424":"Rheineck",
+  "9430":"St. Margrethen","9450":"Altstätten","9500":"Wil","9501":"Wil",
+  "9600":"Buchs"
+};
+
+// Normalise un pays en clair → code ISO 2 lettres
+const COUNTRY_ALIASES = {
+  "suisse":"CH","switzerland":"CH","schweiz":"CH","svizzera":"CH","svizra":"CH",
+  "france":"FR","frankreich":"FR","frankrijk":"FR",
+  "allemagne":"DE","germany":"DE","deutschland":"DE",
+  "italie":"IT","italy":"IT","italia":"IT",
+  "belgique":"BE","belgium":"BE","belgie":"BE","belgien":"BE",
+  "autriche":"AT","austria":"AT","österreich":"AT",
+  "espagne":"ES","spain":"ES","españa":"ES",
+  "pays-bas":"NL","netherlands":"NL","niederlande":"NL","holland":"NL",
+  "royaume-uni":"GB","united kingdom":"GB","uk":"GB","great britain":"GB",
+  "états-unis":"US","united states":"US","usa":"US",
+  "luxembourg":"LU","liechtenstein":"LI","monaco":"MC"
+};
+
 // ── Normalisation des valeurs ─────────────────────────────────
 
 function normalizeEmail(val) {
@@ -279,6 +415,158 @@ function normalizeValue(val, type) {
     case "currency": return normalizeText(val);
     default:         return normalizeText(val);
   }
+}
+
+// ── Post-traitement : scan universel ─────────────────────────
+//
+// Parcourt TOUTES les cellules d'une ligne brute pour y trouver
+// des emails, téléphones ou URLs qui ne se trouvaient pas dans les
+// colonnes mappées.  Ne remplace jamais une valeur déjà remplie.
+
+function universalScan(rawRow, out, allHeaders) {
+  let gained = 0;
+
+  for (const h of allHeaders) {
+    const cell = String(rawRow[h] ?? "").trim();
+    if (cell.length < 4) continue;
+
+    // ── Email ────────────────────────────────────────────────
+    if (!out.email || !out.email2) {
+      const hits = [...cell.matchAll(EMAIL_RE)].map(m => m[0].toLowerCase());
+      for (const hit of hits) {
+        if (!out.email)            { out.email  = hit; gained++; }
+        else if (!out.email2 && hit !== out.email) { out.email2 = hit; gained++; }
+      }
+    }
+
+    // ── Téléphone ────────────────────────────────────────────
+    if (!out.phone || !out.mobile) {
+      const hits = [...cell.matchAll(PHONE_RE)]
+        .map(m => normalizePhone(m[0]))
+        .filter(p => p.length >= 7);
+
+      for (const hit of hits) {
+        if (!out.phone)                      { out.phone  = hit; gained++; }
+        else if (!out.mobile && hit !== out.phone) { out.mobile = hit; gained++; }
+      }
+    }
+
+    // ── URL / Site web ────────────────────────────────────────
+    if (!out.website) {
+      const hits = [...cell.matchAll(URL_RE)].map(m => normalizeUrl(m[0]));
+      if (hits.length) { out.website = hits[0]; gained++; }
+    }
+
+    // ── LinkedIn ─────────────────────────────────────────────
+    if (!out.linkedin && /linkedin\.com/i.test(cell)) {
+      const m = cell.match(/(?:https?:\/\/)?(?:www\.)?linkedin\.com\/[^\s,<>"')]+/i);
+      if (m) { out.linkedin = normalizeUrl(m[0]); gained++; }
+    }
+  }
+
+  return gained;
+}
+
+// ── Post-traitement : déduction inter-champs ──────────────────
+//
+// Déduit des valeurs manquantes à partir de ce qui est déjà connu.
+// Exemples :
+//   email "jean@acme.ch"  → website "acme.ch"
+//   postal_code "1200"    → city "Genève", country "CH"
+//   contact "Jean Dupont" → prenom "Jean" + contact "Dupont"
+//   address "Rue X 12, 1200 Genève" → postal_code + city + address nettoyée
+
+function inferFromExisting(out) {
+  let gained = 0;
+  POSTAL_RE.lastIndex = 0; // reset obligatoire (flag g)
+
+  // ── Email → site web ─────────────────────────────────────────
+  if (out.email && !out.website) {
+    const at = out.email.lastIndexOf("@");
+    if (at !== -1) {
+      const domain = out.email.slice(at + 1).toLowerCase();
+      if (!GENERIC_MAIL_DOMAINS.has(domain)) {
+        out.website = domain;
+        gained++;
+      }
+    }
+  }
+
+  // ── Adresse combinée → code postal + ville ───────────────────
+  // Gère "Rue de la Paix 12, 1200 Genève" et "1200 Genève, Rue 5"
+  if (out.address && (!out.postal_code || !out.city)) {
+    const addr = out.address;
+
+    // Cherche "NNNN Ville" ou "NNNNN Ville" dans l'adresse
+    POSTAL_RE.lastIndex = 0;
+    const pm = POSTAL_RE.exec(addr);
+    if (pm) {
+      const npa  = pm[1];
+      const ville = pm[2].trim().replace(/[,;]+$/, "");
+
+      if (!out.postal_code) { out.postal_code = npa;   gained++; }
+      if (!out.city)        { out.city        = ville; gained++; }
+
+      // Nettoie l'adresse : supprime la partie "1200 Genève"
+      const cleanAddr = addr.replace(pm[0], "").replace(/[,\s]+$/, "").trim();
+      if (cleanAddr) out.address = cleanAddr;
+    }
+  }
+
+  // ── Code postal suisse → ville ───────────────────────────────
+  if (out.postal_code && !out.city) {
+    const npa = String(out.postal_code).replace(/\s/g, "");
+    const found = CH_POSTAL[npa];
+    if (found) { out.city = found; gained++; }
+  }
+
+  // ── Code postal → pays ────────────────────────────────────────
+  if (out.postal_code && !out.country) {
+    const npa = String(out.postal_code).replace(/\s/g, "");
+    if (/^\d{4}$/.test(npa) && CH_POSTAL[npa]) {
+      out.country = "CH"; gained++;
+    } else if (/^\d{5}$/.test(npa)) {
+      // 5 chiffres = France ou Allemagne ; ne pas deviner sans certitude
+    }
+  }
+
+  // ── Normalisation du pays ─────────────────────────────────────
+  if (out.country) {
+    const key = out.country.toLowerCase().trim();
+    const iso  = COUNTRY_ALIASES[key];
+    if (iso && iso !== out.country) { out.country = iso; }
+  }
+
+  // ── Nom complet → prénom + nom ────────────────────────────────
+  if (out.contact && !out.prenom) {
+    const parts = out.contact.trim().split(/\s+/);
+    if (parts.length >= 2) {
+      // Convention "NOM Prénom" (nom en majuscules) ?
+      if (parts[0] === parts[0].toUpperCase() && parts[0].length > 1 && /[A-ZÀ-Ü]{2,}/.test(parts[0])) {
+        out.prenom  = parts.slice(1).join(" ");
+        out.contact = parts[0];
+      } else {
+        // Convention "Prénom NOM"
+        out.prenom  = parts[0];
+        out.contact = parts.slice(1).join(" ");
+      }
+      gained++;
+    }
+  }
+
+  // ── Site web : si contient le domaine de l'email, garder le plus complet ─
+  if (out.website && out.email) {
+    const at = out.email.lastIndexOf("@");
+    const domain = at !== -1 ? out.email.slice(at + 1).toLowerCase() : "";
+    // Si le website est juste le domaine sans www, et que l'email le confirme, ok
+    const cleanSite = out.website.replace(/^www\./i, "").toLowerCase().split("/")[0];
+    if (domain && cleanSite !== domain && out.website.length < domain.length) {
+      // Le domain d'email est plus précis
+      if (!GENERIC_MAIL_DOMAINS.has(domain)) out.website = domain;
+    }
+  }
+
+  return gained;
 }
 
 // ── Détection automatique des colonnes ───────────────────────
@@ -376,10 +664,33 @@ let sheetName = "";
 // ── Initialisation ────────────────────────────────────────────
 
 document.addEventListener("DOMContentLoaded", () => {
+  // File import
   document.getElementById("fileInput").addEventListener("change", handleFile);
   document.getElementById("extractBtn").addEventListener("click", doExtract);
   document.getElementById("exportLocalBtn").addEventListener("click", exportToExcel);
-  document.getElementById("enrichBtn").addEventListener("click", doEnrich);
+
+  // Tab navigation
+  document.querySelectorAll(".tab-btn").forEach(btn => {
+    btn.addEventListener("click", () => switchTab(btn.dataset.tab));
+  });
+
+  // Import tab buttons
+  document.getElementById("goToDbBtn").addEventListener("click", () => switchTab("database"));
+  document.getElementById("enrichBtn").addEventListener("click", () => {
+    switchTab("enrich");
+    doEnrich();
+  });
+
+  // Database tab buttons
+  document.getElementById("dbExportBtn").addEventListener("click", exportToExcel);
+  document.getElementById("dbEnrichBtn").addEventListener("click", () => {
+    switchTab("enrich");
+    doEnrich();
+  });
+  document.getElementById("dbSearch").addEventListener("input", renderDatabase);
+  document.getElementById("dbFilter").addEventListener("change", renderDatabase);
+
+  // enrichDirectBtn est branché dynamiquement dans doEnrich()
 });
 
 // ── 1. Chargement du fichier ──────────────────────────────────
@@ -390,6 +701,7 @@ function handleFile(e) {
 
   originalFileName = file.name.replace(/\.[^.]+$/, "");
   document.getElementById("fileLabel").textContent = file.name;
+  document.getElementById("sheetSelectorWrap").style.display = "none";
 
   const reader = new FileReader();
   reader.onload = function (ev) {
@@ -398,21 +710,13 @@ function handleFile(e) {
 
       const data = new Uint8Array(ev.target.result);
       wb = XLSX.read(data, { type: "array" });
-      sheetName = wb.SheetNames[0];
-      const ws = wb.Sheets[sheetName];
-      rawRows = XLSX.utils.sheet_to_json(ws, { defval: "" });
 
-      if (!rawRows.length) throw new Error("Fichier vide ou non lisible");
-
-      allHeaders = Object.keys(rawRows[0]);
-      columnMapping = detectColumnMapping(allHeaders, rawRows);
-
-      const detected = Object.values(columnMapping).filter(Boolean).length;
-      document.getElementById("fileInfo").textContent =
-        `${file.name} — ${rawRows.length} lignes, ${allHeaders.length} colonnes, ${detected} champs détectés`;
-
-      showStatus(`Fichier chargé : ${rawRows.length} lignes.`, "ok");
-      showMappingUI();
+      if (wb.SheetNames.length > 1) {
+        showSheetSelector(wb.SheetNames, file.name);
+      } else {
+        sheetName = wb.SheetNames[0];
+        loadSheet(file.name);
+      }
     } catch (err) {
       showStatus("Erreur lecture : " + err.message, "err");
       console.error(err);
@@ -420,6 +724,43 @@ function handleFile(e) {
   };
   reader.onerror = () => showStatus("Erreur de lecture du fichier", "err");
   reader.readAsArrayBuffer(file);
+}
+
+function showSheetSelector(sheets, fileName) {
+  const wrap = document.getElementById("sheetSelectorWrap");
+  const sel  = document.getElementById("sheetSelect");
+  sel.innerHTML = sheets.map(s =>
+    `<option value="${escapeHtml(s)}">${escapeHtml(s)}</option>`
+  ).join("");
+  wrap.style.display = "flex";
+  document.getElementById("sheetConfirmBtn").onclick = () => {
+    sheetName = document.getElementById("sheetSelect").value;
+    wrap.style.display = "none";
+    loadSheet(fileName);
+  };
+  showStatus(`${sheets.length} onglets détectés — choisissez celui à importer.`, "ok");
+}
+
+function loadSheet(fileName) {
+  try {
+    const ws = wb.Sheets[sheetName];
+    rawRows = XLSX.utils.sheet_to_json(ws, { defval: "" });
+
+    if (!rawRows.length) throw new Error(`Onglet "${sheetName}" vide ou non lisible`);
+
+    allHeaders = Object.keys(rawRows[0]);
+    columnMapping = detectColumnMapping(allHeaders, rawRows);
+
+    const detected = Object.values(columnMapping).filter(Boolean).length;
+    document.getElementById("fileInfo").textContent =
+      `${fileName} — onglet : "${sheetName}" — ${rawRows.length} lignes, ${allHeaders.length} colonnes, ${detected} champs détectés`;
+
+    showStatus(`Fichier chargé : ${rawRows.length} lignes depuis "${sheetName}".`, "ok");
+    showMappingUI();
+  } catch (err) {
+    showStatus("Erreur lecture : " + err.message, "err");
+    console.error(err);
+  }
 }
 
 // ── 2. Interface de mapping des colonnes ──────────────────────
@@ -491,7 +832,7 @@ function showMappingUI() {
   section.scrollIntoView({ behavior: "smooth" });
 }
 
-// ── 3. Extraction et normalisation ───────────────────────────
+// ── 3. Extraction, post-traitement et normalisation ──────────
 
 function doExtract() {
   // Lit le mapping final depuis les selects
@@ -500,23 +841,20 @@ function doExtract() {
     if (sel) columnMapping[field.key] = sel.value || null;
   }
 
-  // Extraction ligne par ligne
+  // ── Passe 1 : extraction depuis les colonnes mappées ─────────
   extractedRows = rawRows.map((raw, idx) => {
-    const out = { _row: idx + 2 }; // numéro de ligne Excel (1 = header)
+    const out = { _row: idx + 2 };
 
     for (const field of FIELDS) {
       const col = columnMapping[field.key];
-      if (col && raw[col] !== undefined) {
-        out[field.key] = normalizeValue(raw[col], field.type);
-      } else {
-        out[field.key] = "";
-      }
+      out[field.key] = (col && raw[col] !== undefined)
+        ? normalizeValue(raw[col], field.type)
+        : "";
     }
 
     // Conserve les colonnes non mappées sous préfixe _orig
     for (const h of allHeaders) {
-      const isMapped = Object.values(columnMapping).includes(h);
-      if (!isMapped) {
+      if (!Object.values(columnMapping).includes(h)) {
         out[`_orig_${h}`] = normalizeText(raw[h]);
       }
     }
@@ -524,29 +862,67 @@ function doExtract() {
     return out;
   });
 
-  showResults();
+  // Compte des cellules remplies après passe 1
+  const baseFilled = countFilled(extractedRows);
+
+  // ── Passe 2 : scan universel de toutes les cellules ───────────
+  let scanGain = 0;
+  extractedRows.forEach((out, i) => {
+    scanGain += universalScan(rawRows[i], out, allHeaders);
+  });
+
+  // ── Passe 3 : déductions inter-champs ─────────────────────────
+  let inferGain = 0;
+  extractedRows.forEach(out => {
+    inferGain += inferFromExisting(out);
+  });
+
+  const totalGain = scanGain + inferGain;
+  const afterFilled = countFilled(extractedRows);
+
+  showResults({ baseFilled, afterFilled, scanGain, inferGain });
+  updateDatabaseBadge();
+  renderDatabase();
+}
+
+function countFilled(rows) {
+  return SUMMARY_FIELDS.reduce(
+    (acc, key) => acc + rows.filter(r => r[key] && r[key] !== "").length, 0
+  );
 }
 
 // ── 4. Affichage des résultats ────────────────────────────────
 
-function showResults() {
+function showResults({ baseFilled = null, afterFilled = null, scanGain = 0, inferGain = 0 } = {}) {
   const total = extractedRows.length;
+  const totalCells = SUMMARY_FIELDS.length * total;
 
-  // Statistiques globales
-  const statsEl = document.getElementById("stats");
+  const filledCells = countFilled(extractedRows);
+  const globalPct   = total > 0 ? Math.round((filledCells / totalCells) * 100) : 0;
   const filledFields = SUMMARY_FIELDS.filter(key =>
     extractedRows.some(r => r[key] && r[key] !== "")
   ).length;
-  const totalCells = SUMMARY_FIELDS.length * total;
-  const filledCells = SUMMARY_FIELDS.reduce((acc, key) =>
-    acc + extractedRows.filter(r => r[key] && r[key] !== "").length, 0
-  );
-  const globalPct = total > 0 ? Math.round((filledCells / totalCells) * 100) : 0;
+
+  // Statistiques globales
+  const statsEl = document.getElementById("stats");
+  let enhanceBadge = "";
+  if (baseFilled !== null && afterFilled !== null) {
+    const gained = afterFilled - baseFilled;
+    const basePct = total > 0 ? Math.round((baseFilled / totalCells) * 100) : 0;
+    if (gained > 0) {
+      enhanceBadge = `
+        <span class="stat-item stat-gain">
+          +${gained} cellules via analyse locale
+          <span class="stat-sub">(scan:${scanGain} + déduction:${inferGain})</span>
+        </span>`;
+    }
+  }
 
   statsEl.innerHTML = `
     <span class="stat-item"><strong>${total}</strong> enregistrements</span>
     <span class="stat-item"><strong>${filledFields}/${SUMMARY_FIELDS.length}</strong> champs couverts</span>
     <span class="stat-item stat-highlight"><strong>${globalPct}%</strong> de remplissage global</span>
+    ${enhanceBadge}
   `;
 
   // Taux de remplissage par champ
@@ -580,6 +956,7 @@ function showResults() {
   section.style.display = "block";
   section.scrollIntoView({ behavior: "smooth" });
   showStatus("Extraction terminée.", "ok");
+  renderDatabase();
 }
 
 function renderPreview(rows, fieldKeys) {
@@ -641,52 +1018,545 @@ function exportToExcel() {
   showStatus("Fichier exporté : " + originalFileName + "_extrait.xlsx", "ok");
 }
 
-// ── 6. Enrichissement IA ──────────────────────────────────────
+// ── Devinette de domaine (gratuit, sans API) ──────────────────
+//
+// Génère des candidats de domaine à partir du nom de société
+// et teste leur existence via fetch no-cors.
+// Une réponse (même opaque) = le serveur répond = domaine valide.
 
-async function doEnrich() {
-  if (!extractedRows.length) return;
+function normalizeDomainSlug(name) {
+  return name
+    .toLowerCase()
+    // Supprime les formes juridiques
+    .replace(/\b(sa|sàrl|sarl|gmbh|ag|srl|sprl|bv|nv|ltd|inc|llc|corp|cie|co\.?)\b\.?/gi, "")
+    // Supprime les accents
+    .normalize("NFD").replace(/[\u0300-\u036f]/g, "")
+    .replace(/[^a-z0-9\s\-]/g, "")
+    .trim()
+    .replace(/\s+/g, "-")
+    .replace(/-+/g, "-")
+    .replace(/^-+|-+$/g, "");
+}
 
-  const enrichBtn = document.getElementById("enrichBtn");
-  enrichBtn.disabled = true;
+function buildDomainCandidates(companyName, city) {
+  if (!companyName) return [];
+  const base    = normalizeDomainSlug(companyName);
+  const compact = base.replace(/-/g, "");
+  const first   = base.split("-")[0];
+  const roots   = [...new Set([base, compact, first].filter(r => r.length >= 2))];
+  const tlds    = [".ch", ".com", ".fr", ".de", ".net"];
+  const out     = [];
+  for (const r of roots) {
+    for (const t of tlds) out.push(r + t);
+    if (city) {
+      const c = normalizeDomainSlug(city);
+      if (c.length >= 2) out.push(`${r}-${c}.ch`);
+    }
+  }
+  return [...new Set(out)].slice(0, 10);
+}
 
-  const section = document.getElementById("step-enrich");
-  section.style.display = "block";
-  section.scrollIntoView({ behavior: "smooth" });
-
-  const enrichStatus = document.getElementById("enrichStatus");
-  enrichStatus.textContent = `Envoi de ${extractedRows.length} lignes au Worker IA...`;
-
+async function probeDomain(domain) {
   try {
-    const response = await fetch(ENRICH_URL, {
+    await fetch(`https://${domain}`, {
+      method: "HEAD",
+      mode: "no-cors",
+      signal: AbortSignal.timeout(3000)
+    });
+    return true;  // réponse reçue = domaine existe
+  } catch { return false; }
+}
+
+async function guessDomainForRow(row) {
+  if (row.website) return null;  // déjà connu
+  const candidates = buildDomainCandidates(row.company, row.city);
+  // Teste tous en parallèle, retourne le premier valide (par ordre de priorité)
+  const checks = await Promise.all(candidates.map(d => probeDomain(d)));
+  for (let i = 0; i < candidates.length; i++) {
+    if (checks[i]) return candidates[i];
+  }
+  return null;
+}
+
+// ── 6. Enrichissement IA direct (Claude + web_search) ────────
+
+// État de la session d'enrichissement
+let enrichPaused  = false;
+let enrichStopped = false;
+
+// Cache de session pour éviter les doubles appels
+function loadCache() {
+  try { return JSON.parse(localStorage.getItem(CACHE_KEY) || "{}"); }
+  catch { return {}; }
+}
+function saveCache(cache) {
+  try { localStorage.setItem(CACHE_KEY, JSON.stringify(cache)); } catch {}
+}
+function cacheKey(row) {
+  return [row.company, row.city, row.region].map(v => (v || "").toLowerCase().trim()).join("|");
+}
+
+// Ouvre l'étape enrichissement et branche les contrôles
+function doEnrich() {
+  if (!extractedRows.length) {
+    showStatus("Importez d'abord un fichier Excel.", "err");
+    switchTab("import");
+    return;
+  }
+
+  // Restaure la clé API sauvegardée
+  const saved = localStorage.getItem(APIKEY_LS_KEY) || "";
+  if (saved) document.getElementById("apiKeyInput").value = saved;
+
+  // Bouton afficher/masquer la clé
+  document.getElementById("toggleKeyBtn").onclick = () => {
+    const inp = document.getElementById("apiKeyInput");
+    const btn = document.getElementById("toggleKeyBtn");
+    const show = inp.type === "password";
+    inp.type = show ? "text" : "password";
+    btn.textContent = show ? "Masquer" : "Afficher";
+  };
+
+  document.getElementById("enrichDirectBtn").onclick = startDirectEnrich;
+  document.getElementById("pauseBtn").onclick  = () => { enrichPaused  = true;  updateCtrlBtns("paused"); };
+  document.getElementById("resumeBtn").onclick = () => { enrichPaused  = false; updateCtrlBtns("running"); resumeEnrich(); };
+  document.getElementById("stopBtn").onclick   = () => { enrichStopped = true;  updateCtrlBtns("stopped"); };
+}
+
+function updateCtrlBtns(state) {
+  const s = document.getElementById;
+  document.getElementById("pauseBtn").style.display  = state === "running" ? "inline-block" : "none";
+  document.getElementById("resumeBtn").style.display = state === "paused"  ? "inline-block" : "none";
+  document.getElementById("stopBtn").style.display   = state !== "stopped" ? "inline-block" : "none";
+}
+
+// Résumé des champs manquants pour une ligne
+function missingFields(row) {
+  return SUMMARY_FIELDS.filter(k => !row[k] || row[k] === "");
+}
+
+// ── Prompt d'enrichissement ───────────────────────────────────
+//
+// Envoyé à Claude pour chaque batch de ENRICH_BATCH_SIZE entreprises.
+// Focalise la recherche sur les sources suisses connues.
+
+// Prompt ultra-ciblé pour 1 seule entreprise (batch_size = 1)
+function buildPrompt(row) {
+  const known = SUMMARY_FIELDS
+    .filter(k => row[k] && row[k] !== "")
+    .map(k => `${k}: "${row[k]}"`)
+    .join(" | ") || "—";
+
+  const needed = missingFields(row);
+
+  // Génère les domaines candidats pour aider Claude
+  const candidateList = buildDomainCandidates(row.company, row.city)
+    .slice(0, 4).join(", ");
+
+  return `Tu es un expert en recherche de données B2B suisses. Utilise l'outil web_search pour trouver les données manquantes de cette entreprise.
+
+ENTREPRISE : "${row.company || "?"}"
+VILLE/RÉGION : ${row.city || row.region || "inconnue"}
+CONNU : ${known}
+À TROUVER : ${needed.join(", ")}
+DOMAINES À TESTER : ${candidateList || "—"}
+
+SÉQUENCE DE RECHERCHES (exécute-les TOUTES avant de répondre) :
+${needed.includes("website") ? `1. Teste directement : ${candidateList} — vérifie lequel fonctionne
+2. Recherche : "${row.company} ${row.city || ""} site officiel"` : ""}
+${needed.includes("address") || needed.includes("postal_code") || needed.includes("city") ? `3. Recherche zefix.ch : "${row.company} ${row.city || ""}" → adresse officielle + NPA
+4. Recherche moneyhouse.ch : "${row.company}" → adresse + téléphone` : ""}
+${needed.includes("phone") || needed.includes("mobile") ? `5. Recherche local.ch : "${row.company} ${row.city || ""}" → numéro de téléphone direct
+6. Recherche search.ch : "${row.company}" → téléphone + adresse` : ""}
+${needed.includes("email") ? `7. Visite la page /contact ou /impressum du site trouvé → cherche un email réel
+8. Recherche : "${row.company} contact email ${row.city || ""}"` : ""}
+
+RÈGLES STRICTES :
+- website : domaine SEUL sans https:// ni www (ex: acme.ch)
+- phone : +41 XX XXX XX XX pour Suisse, +33 X XX XX XX XX pour France
+- email : email professionnel RÉEL trouvé sur une page — jamais inventé
+- postal_code : 4 chiffres (CH) ou 5 chiffres (FR/DE)
+- country : code ISO 2 lettres — CH si adresse suisse
+- Mets null si introuvable après recherche sérieuse
+
+Réponds UNIQUEMENT avec ce JSON (sans texte autour) :
+{"website":…,"email":…,"phone":…,"mobile":…,"address":…,"postal_code":…,"city":…,"country":…}`;
+}
+
+// ── Appel Claude API avec boucle multi-tour web_search ────────
+//
+// web_search_20250305 est un outil "server-side" : Anthropic exécute
+// les recherches, mais l'API retourne quand même stop_reason="tool_use"
+// entre chaque recherche. Il faut renvoyer un tool_result vide pour
+// continuer jusqu'à stop_reason="end_turn".
+
+async function callClaudeAPI(apiKey, prompt) {
+  const messages = [{ role: "user", content: prompt }];
+
+  for (let turn = 0; turn < MAX_TURNS; turn++) {
+    const resp = await fetch(CLAUDE_API_URL, {
       method: "POST",
-      headers: { "Content-Type": "application/json" },
+      headers: {
+        "Content-Type": "application/json",
+        "x-api-key": apiKey,
+        "anthropic-version": "2023-06-01",
+        "anthropic-dangerous-direct-browser-access": "true"
+      },
       body: JSON.stringify({
-        rows: extractedRows,
-        fieldMap: FIELDS.map(f => ({ key: f.key, label: f.label }))
+        model: CLAUDE_MODEL,
+        max_tokens: 2048,
+        tools: [{ type: "web_search_20250305", name: "web_search" }],
+        messages
       })
     });
 
-    const text = await response.text();
-    if (!response.ok) throw new Error(`HTTP ${response.status}: ${text}`);
+    if (resp.status === 429) {
+      const retry = parseInt(resp.headers.get("retry-after") || "30", 10);
+      logEnrich(`⏳ Rate limit — reprise dans ${retry}s…`);
+      await sleep(retry * 1000);
+      continue; // réessaie sans incrémenter turn
+    }
 
-    let data;
-    try { data = JSON.parse(text); }
-    catch { throw new Error("Réponse non JSON : " + text.slice(0, 200)); }
+    if (!resp.ok) {
+      const body = await resp.text();
+      throw new Error(`Claude ${resp.status}: ${body.slice(0, 200)}`);
+    }
 
-    if (!data.ok) throw new Error(data.error || "Erreur Worker");
-    if (!Array.isArray(data.enriched)) throw new Error("Réponse invalide (pas de tableau enriched)");
+    const data = await resp.json();
 
-    extractedRows = data.enriched;
-    showResults();
-    enrichStatus.innerHTML = `<span class="ok">Enrichissement terminé — ${data.enriched.length} lignes mises à jour.</span>`;
-    showStatus("Enrichissement IA terminé.", "ok");
-  } catch (err) {
-    enrichStatus.innerHTML = `<span class="err">Erreur : ${escapeHtml(err.message)}</span>`;
-    showStatus("Erreur enrichissement : " + err.message, "err");
-    console.error(err);
-  } finally {
-    enrichBtn.disabled = false;
+    // Réponse finale : retourne
+    if (data.stop_reason === "end_turn") return data;
+
+    // L'outil web_search a été déclenché : renvoie un tool_result vide
+    // pour que le modèle puisse continuer avec les résultats
+    if (data.stop_reason === "tool_use") {
+      const toolUses = (data.content || []).filter(b => b.type === "tool_use");
+      if (!toolUses.length) return data; // aucun tool_use → on arrête
+
+      messages.push({ role: "assistant", content: data.content });
+      messages.push({
+        role: "user",
+        content: toolUses.map(tu => ({
+          type: "tool_result",
+          tool_use_id: tu.id,
+          content: "" // Anthropic gère l'exécution côté serveur
+        }))
+      });
+      continue;
+    }
+
+    return data; // autre stop_reason inattendu
   }
+
+  throw new Error("Trop de tours (web_search loop)");
+}
+
+// ── Extraction du JSON dans la réponse Claude ─────────────────
+//
+// Cherche un objet JSON {} ou un tableau [] dans le texte de réponse.
+// Prend le dernier bloc "text" (celui qui contient la réponse finale).
+
+function extractJSON(apiResponse) {
+  const blocks = (apiResponse?.content || []);
+  // Concatène tous les blocs texte (en cas de plusieurs)
+  const text = blocks.filter(b => b.type === "text").map(b => b.text).join("\n");
+
+  // Essaie d'abord un objet simple {} (prompt batch=1)
+  const objMatch = text.match(/\{[^{}]*(?:\{[^{}]*\}[^{}]*)?\}/s);
+  if (objMatch) {
+    try {
+      const obj = JSON.parse(objMatch[0]);
+      if (typeof obj === "object" && !Array.isArray(obj)) {
+        return { idx: 0, ...obj }; // enveloppe en objet indexé
+      }
+    } catch {}
+  }
+
+  // Fallback : tableau []
+  const arrMatch = text.match(/\[[\s\S]*?\]/);
+  if (arrMatch) {
+    try {
+      const arr = JSON.parse(arrMatch[0]);
+      return Array.isArray(arr) ? arr[0] : arr;
+    } catch {}
+  }
+
+  return null;
+}
+
+// ── Application d'un résultat sur une ligne ───────────────────
+
+const ENRICHABLE = ["website","email","email2","phone","mobile",
+                    "address","postal_code","city","country","linkedin"];
+
+function applyResult(row, item, cache) {
+  if (!item) return 0;
+  let filled = 0;
+
+  for (const key of ENRICHABLE) {
+    const raw = item[key];
+    if (!raw || raw === "null" || String(raw).trim() === "") continue;
+    if (row[key]) continue; // ne pas écraser une valeur existante
+
+    const val = normalizeValue(raw, FIELDS.find(f => f.key === key)?.type || "text");
+    if (val) { row[key] = val; filled++; }
+  }
+
+  // Re-déduction locale après enrichissement
+  inferFromExisting(row);
+
+  // Cache seulement si au moins un champ a été rempli
+  if (filled > 0) {
+    cache[cacheKey(row)] = Object.fromEntries(ENRICHABLE.map(k => [k, row[k] || ""]));
+  }
+
+  return filled;
+}
+
+// ── Boucle principale d'enrichissement ───────────────────────
+
+let resumeCallback = null;
+
+async function startDirectEnrich() {
+  const apiKey = document.getElementById("apiKeyInput").value.trim();
+  if (!apiKey || !apiKey.startsWith("sk-ant")) {
+    document.getElementById("enrichStatus").innerHTML =
+      `<span class="err">Clé API invalide. Elle doit commencer par "sk-ant-…"</span>`;
+    return;
+  }
+  localStorage.setItem(APIKEY_LS_KEY, apiKey);
+
+  enrichPaused  = false;
+  enrichStopped = false;
+
+  document.getElementById("enrichDirectBtn").disabled = true;
+  document.getElementById("enrichProgressBox").style.display = "block";
+  document.getElementById("enrichStatus").innerHTML = "";
+  updateCtrlBtns("running");
+
+  const cache = loadCache();
+
+  const toProcess = extractedRows.filter(r => missingFields(r).length > 0);
+  let done = 0;
+  let totalFilled = 0;
+  let cacheHits = 0;
+
+  logEnrich(`🚀 ${toProcess.length} entreprises à traiter (${extractedRows.length - toProcess.length} complètes)`);
+
+  // ── Passe A : devinette de domaine (gratuite, sans API) ──────
+  logEnrich(`🌐 Passe A : test de domaines .ch/.com pour chaque société…`);
+  let domainFound = 0;
+  for (const row of toProcess) {
+    if (enrichStopped) break;
+    const domain = await guessDomainForRow(row);
+    if (domain) {
+      row.website = domain;
+      inferFromExisting(row); // email → website etc.
+      domainFound++;
+    }
+  }
+  logEnrich(`  ✓ ${domainFound} sites web trouvés par devinette`);
+  if (domainFound > 0) { showResults(); }
+
+  // ── Passe B : enrichissement Claude IA ligne par ligne ────────
+  logEnrich(`🤖 Passe B : enrichissement Claude avec web_search…`);
+
+  for (let i = 0; i < toProcess.length; i++) {
+    if (enrichStopped) break;
+    while (enrichPaused) { await sleep(400); if (enrichStopped) break; }
+    if (enrichStopped) break;
+
+    const row = toProcess[i];
+
+    // Vérifie le cache
+    const ck = cacheKey(row);
+    if (cache[ck]) {
+      for (const [k, v] of Object.entries(cache[ck])) {
+        if (v && !row[k]) { row[k] = v; totalFilled++; }
+      }
+      cacheHits++;
+      done++;
+      updateEnrichProgress(done, toProcess.length);
+      continue;
+    }
+
+    // Si tous les champs sont déjà remplis, on passe
+    if (missingFields(row).length === 0) {
+      done++;
+      updateEnrichProgress(done, toProcess.length);
+      continue;
+    }
+
+    try {
+      const label = `[${i + 1}/${toProcess.length}] ${row.company || "?"}`;
+      logEnrich(`🔍 ${label}`);
+
+      const prompt   = buildPrompt(row);
+      const response = await callClaudeAPI(apiKey, prompt);
+      const result   = extractJSON(response);
+      const gained   = applyResult(row, result, cache);
+
+      totalFilled += gained;
+      if (gained > 0) saveCache(cache);
+
+      // Log des champs trouvés
+      const found = ENRICHABLE.filter(k => result && result[k] && result[k] !== "null").join(", ");
+      logEnrich(gained > 0
+        ? `  ✓ +${gained} champs : ${found}`
+        : `  — rien trouvé`
+      );
+    } catch (err) {
+      logEnrich(`  ✗ ${err.message.slice(0, 80)}`);
+      console.error(err);
+    }
+
+    done++;
+    updateEnrichProgress(done, toProcess.length);
+    if (i < toProcess.length - 1 && !enrichStopped) await sleep(ENRICH_DELAY_MS);
+  }
+
+  const summary = enrichStopped
+    ? `Arrêté — ${totalFilled} champs enrichis, ${domainFound} sites devinés.`
+    : `Terminé — ${totalFilled} champs enrichis, ${domainFound} sites devinés (${cacheHits} depuis cache).`;
+
+  document.getElementById("enrichStatus").innerHTML = `<span class="ok">${escapeHtml(summary)}</span>`;
+  updateCtrlBtns("stopped");
+  document.getElementById("enrichDirectBtn").disabled = false;
+  showResults();
+  renderDatabase();
+}
+
+function updateEnrichProgress(done, total) {
+  const pct = total > 0 ? Math.round((done / total) * 100) : 0;
+  document.getElementById("enrichProgressLabel").textContent = `${done} / ${total} entreprises`;
+  document.getElementById("enrichProgressPct").textContent   = `${pct}%`;
+  document.getElementById("enrichBar").style.width           = `${pct}%`;
+}
+
+function logEnrich(msg) {
+  const log = document.getElementById("enrichLog");
+  const p = document.createElement("p");
+  p.className = "log-line";
+  p.textContent = msg;
+  log.appendChild(p);
+  log.scrollTop = log.scrollHeight;
+}
+
+function sleep(ms) { return new Promise(r => setTimeout(r, ms)); }
+
+// ── Navigation par onglets ────────────────────────────────────
+
+function switchTab(name) {
+  document.querySelectorAll(".tab-btn").forEach(b =>
+    b.classList.toggle("active", b.dataset.tab === name)
+  );
+  document.querySelectorAll(".tab-panel").forEach(p =>
+    p.classList.toggle("active", p.id === `tab-${name}`)
+  );
+  if (name === "database") renderDatabase();
+}
+
+// ── Onglet Client Database ────────────────────────────────────
+
+const DB_DISPLAY_FIELDS = ["company", "contact", "email", "phone", "website", "address", "city", "country"];
+
+function updateDatabaseBadge() {
+  const badge = document.getElementById("dbBadge");
+  if (!badge) return;
+  const count = extractedRows.length;
+  badge.textContent = count;
+  badge.style.display = count > 0 ? "inline" : "none";
+}
+
+function renderDatabase() {
+  const wrap = document.getElementById("dbTableWrap");
+  if (!wrap) return;
+
+  if (!extractedRows.length) {
+    wrap.innerHTML = `<div class="db-empty"><p>Aucun client chargé.<br>Commencez par importer un fichier Excel dans l'onglet <strong>Import</strong>.</p></div>`;
+    document.getElementById("dbStats").innerHTML = "";
+    document.getElementById("dbCount").textContent = "0 client(s)";
+    return;
+  }
+
+  const search = (document.getElementById("dbSearch")?.value || "").toLowerCase().trim();
+  const filter = document.getElementById("dbFilter")?.value || "all";
+
+  const scored = extractedRows.map(row => {
+    const filled = SUMMARY_FIELDS.filter(k => row[k] && row[k] !== "").length;
+    return { row, score: Math.round((filled / SUMMARY_FIELDS.length) * 100) };
+  });
+
+  const filtered = scored.filter(({ row, score }) => {
+    if (filter === "complete"   && score < 80)  return false;
+    if (filter === "incomplete" && score >= 80) return false;
+    if (search) {
+      const hay = DB_DISPLAY_FIELDS.map(k => (row[k] || "").toLowerCase()).join(" ");
+      if (!hay.includes(search)) return false;
+    }
+    return true;
+  });
+
+  document.getElementById("dbCount").textContent = `${filtered.length} client(s)`;
+  renderDbStats(scored);
+
+  if (!filtered.length) {
+    wrap.innerHTML = `<div class="db-empty"><p>Aucun résultat pour cette recherche.</p></div>`;
+    return;
+  }
+
+  let html = '<table class="db-table"><thead><tr><th>Score</th>';
+  for (const key of DB_DISPLAY_FIELDS) {
+    const field = FIELDS.find(f => f.key === key);
+    html += `<th>${escapeHtml(field ? field.label : key)}</th>`;
+  }
+  html += '</tr></thead><tbody>';
+
+  for (const { row, score } of filtered) {
+    const cls = score >= 80 ? "score-high" : score >= 40 ? "score-medium" : "score-low";
+    html += `<tr><td class="cell-score"><span class="score-pill ${cls}">${score}%</span></td>`;
+    for (const key of DB_DISPLAY_FIELDS) {
+      const val = row[key] || "";
+      html += val ? `<td>${escapeHtml(val)}</td>` : `<td class="cell-empty"></td>`;
+    }
+    html += "</tr>";
+  }
+
+  html += "</tbody></table>";
+  wrap.innerHTML = html;
+}
+
+function renderDbStats(scored) {
+  const el = document.getElementById("dbStats");
+  if (!el) return;
+  const total      = scored.length;
+  const complete   = scored.filter(s => s.score >= 80).length;
+  const partial    = scored.filter(s => s.score >= 40 && s.score < 80).length;
+  const incomplete = scored.filter(s => s.score < 40).length;
+  const avg        = total > 0 ? Math.round(scored.reduce((a, s) => a + s.score, 0) / total) : 0;
+
+  el.innerHTML = `
+    <div class="db-stat-card">
+      <span class="db-stat-num">${total}</span>
+      <span class="db-stat-lbl">Total</span>
+    </div>
+    <div class="db-stat-card green">
+      <span class="db-stat-num">${complete}</span>
+      <span class="db-stat-lbl">Complets ≥80%</span>
+    </div>
+    <div class="db-stat-card amber">
+      <span class="db-stat-num">${partial}</span>
+      <span class="db-stat-lbl">Partiels</span>
+    </div>
+    <div class="db-stat-card red">
+      <span class="db-stat-num">${incomplete}</span>
+      <span class="db-stat-lbl">Incomplets</span>
+    </div>
+    <div class="db-stat-card purple">
+      <span class="db-stat-num">${avg}%</span>
+      <span class="db-stat-lbl">Score moyen</span>
+    </div>
+  `;
 }
 
 // ── Utilitaires ───────────────────────────────────────────────
