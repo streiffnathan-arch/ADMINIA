@@ -1185,28 +1185,45 @@ Réponds UNIQUEMENT avec ce JSON (sans texte autour) :
 
 // ── Appel Claude API avec boucle multi-tour web_search ────────
 //
-// web_search_20250305 est un outil "server-side" : Anthropic exécute
-// les recherches, mais l'API retourne quand même stop_reason="tool_use"
-// entre chaque recherche. Il faut renvoyer un tool_result vide pour
-// continuer jusqu'à stop_reason="end_turn".
+// Tente d'abord avec web_search_20250305 + header beta.
+// Si l'API retourne 400 (accès non disponible), repasse en mode
+// "knowledge only" : Claude répond depuis ses données d'entraînement.
 
 async function callClaudeAPI(apiKey, prompt) {
+  try {
+    return await _callClaude(apiKey, prompt, true);
+  } catch (err) {
+    if (/Claude 400/.test(err.message)) {
+      logEnrich("  ⚠ web_search non disponible → enrichissement depuis la base de connaissances Claude");
+      const fallbackPrompt = prompt
+        .replace("Utilise l'outil web_search pour trouver les données manquantes", "Utilise ta base de connaissances pour retrouver les données manquantes")
+        .replace(/SÉQUENCE DE RECHERCHES[\s\S]*?RÈGLES STRICTES/, "RÈGLES STRICTES");
+      return await _callClaude(apiKey, fallbackPrompt, false);
+    }
+    throw err;
+  }
+}
+
+async function _callClaude(apiKey, prompt, useWebSearch) {
   const messages = [{ role: "user", content: prompt }];
 
   for (let turn = 0; turn < MAX_TURNS; turn++) {
+    const headers = {
+      "Content-Type": "application/json",
+      "x-api-key": apiKey,
+      "anthropic-version": "2023-06-01",
+      "anthropic-dangerous-direct-browser-access": "true"
+    };
+    if (useWebSearch) headers["anthropic-beta"] = "web-search-2025-03-05";
+
     const resp = await fetch(CLAUDE_API_URL, {
       method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-        "x-api-key": apiKey,
-        "anthropic-version": "2023-06-01",
-        "anthropic-dangerous-direct-browser-access": "true"
-      },
+      headers,
       body: JSON.stringify({
         model: CLAUDE_MODEL,
         max_tokens: 2048,
-        tools: [{ type: "web_search_20250305", name: "web_search" }],
-        messages
+        messages,
+        ...(useWebSearch ? { tools: [{ type: "web_search_20250305", name: "web_search" }] } : {})
       })
     });
 
@@ -1214,38 +1231,34 @@ async function callClaudeAPI(apiKey, prompt) {
       const retry = parseInt(resp.headers.get("retry-after") || "30", 10);
       logEnrich(`⏳ Rate limit — reprise dans ${retry}s…`);
       await sleep(retry * 1000);
-      continue; // réessaie sans incrémenter turn
+      continue;
     }
 
     if (!resp.ok) {
-      const body = await resp.text();
-      throw new Error(`Claude ${resp.status}: ${body.slice(0, 200)}`);
+      const errBody = await resp.text();
+      throw new Error(`Claude ${resp.status}: ${errBody.slice(0, 200)}`);
     }
 
     const data = await resp.json();
 
-    // Réponse finale : retourne
     if (data.stop_reason === "end_turn") return data;
 
-    // L'outil web_search a été déclenché : renvoie un tool_result vide
-    // pour que le modèle puisse continuer avec les résultats
     if (data.stop_reason === "tool_use") {
       const toolUses = (data.content || []).filter(b => b.type === "tool_use");
-      if (!toolUses.length) return data; // aucun tool_use → on arrête
-
+      if (!toolUses.length) return data;
       messages.push({ role: "assistant", content: data.content });
       messages.push({
         role: "user",
         content: toolUses.map(tu => ({
           type: "tool_result",
           tool_use_id: tu.id,
-          content: "" // Anthropic gère l'exécution côté serveur
+          content: ""
         }))
       });
       continue;
     }
 
-    return data; // autre stop_reason inattendu
+    return data;
   }
 
   throw new Error("Trop de tours (web_search loop)");
